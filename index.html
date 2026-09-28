@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>TaskPro – Einfach & Klar</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<main class="app">
+  <header class="header">
+    <h1>✓ TaskPro</h1>
+    <p class="subtitle">Einfach aufschreiben, abhaken, fertig.</p>
+  </header>
+
+  <section class="progress-card">
+    <div class="progress-head">
+      <span id="progress-text">0 von 0 erledigt</span>
+      <strong id="progress-pct">0%</strong>
+    </div>
+    <div class="progress-track"><div id="progress-bar"></div></div>
+  </section>
+
+  <form id="add-form" class="add-form" autocomplete="off">
+    <input id="input-text" type="text" placeholder="Was ist zu tun? z. B. Milch kaufen…" maxlength="120" required />
+    <select id="input-category" aria-label="Kategorie">
+      <option value="Lebensmittel">🛒 Lebensmittel</option>
+      <option value="Haushalt">🏠 Haushalt</option>
+      <option value="Arbeit">💼 Arbeit</option>
+      <option value="Sonstiges" selected>📌 Sonstiges</option>
+    </select>
+    <button type="submit">＋ Hinzufügen</button>
+  </form>
+
+  <nav class="filters" aria-label="Filter">
+    <button data-filter="all" class="active" type="button">Alle <span id="count-total">0</span></button>
+    <button data-filter="open" type="button">Offen <span id="count-open">0</span></button>
+    <button data-filter="done" type="button">Erledigt <span id="count-done">0</span></button>
+  </nav>
+
+  <ul id="list" class="list"></ul>
+
+  <div id="empty" class="empty">
+    <p>📋 Noch nichts da.<br />Schreib oben deine erste Aufgabe.</p>
+  </div>
+
+  <div class="footer-row">
+    <button id="clear-done" type="button">Erledigte löschen</button>
+  </div>
+</main>
+<script src="app.js"></script>
+</body>
+</html>
