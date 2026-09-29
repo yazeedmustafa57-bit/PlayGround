@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Echtzeit-Sprachchat – Victor</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header class="top">
+    <nav>
+      <a class="brand" href="/">Victor</a>
+      <div class="links">
+        <a href="/chat">Chat</a>
+        <a href="/eleven-chat" class="active">Sprachchat</a>
+        <a href="/call">Telefon</a>
+        <a href="/journal">Journal</a>
+        <a href="/setup">Einstellungen</a>
+      </div>
+    </nav>
+  </header>
+  <main>
+    <div class="card">
+      <h1>Victor Echtzeit-Sprachchat</h1>
+      <p><span class="status" id="bridge-status">Noch nicht verbunden</span></p>
+      <p class="muted">Hier wird später der echte ElevenLabs-Echtzeit-Sprachassistent (Audio ↔ ElevenLabs Conversational AI ↔ Audio) angeschlossen. Der lokale Bridge-Status wird unten live vom Server abgefragt – es werden dabei keine Secrets übertragen.</p>
+      <button class="btn" disabled title="Später verfügbar">Mikrofon – Später verfügbar</button>
+      <details style="margin-top:12px">
+        <summary>Lokaler Bridge-Status (JSON)</summary>
+        <pre id="bridge-state" style="white-space:pre-wrap;font-size:0.85rem">lädt …</pre>
+      </details>
+    </div>
+  </main>
+  <footer>victor-ai-assistant · lokal, keine externen Dienste</footer>
+  <script>
+    fetch('/api/elevenlabs/status').then((r) => r.json()).then((s) => {
+      document.getElementById('bridge-state').textContent = JSON.stringify(s, null, 2);
+      if (s && s.connected) {
+        document.getElementById('bridge-status').textContent = 'Verbunden';
+      }
+    }).catch(() => {
+      document.getElementById('bridge-state').textContent = 'Status nicht erreichbar.';
+    });
+  </script>
+</body>
+</html>

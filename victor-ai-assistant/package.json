@@ -1,0 +1,16 @@
+{
+  "name": "victor-ai-assistant",
+  "version": "0.5.0",
+  "description": "Victor: Backend, Gesprächslogik, ElevenLabs-Bridge und Twilio-Scaffolding (lokal, keine Live-Calls).",
+  "main": "src/server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test test/audit-regressions.test.js test/phase3-logic.test.js test/phase4-bridge.test.js test/phase5-rest.test.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "UNLICENSED",
+  "dependencies": {}
+}

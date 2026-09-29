@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chat – Victor</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header class="top">
+    <nav>
+      <a class="brand" href="/">Victor</a>
+      <div class="links">
+        <a href="/chat" class="active">Chat</a>
+        <a href="/eleven-chat">Sprachchat</a>
+        <a href="/call">Telefon</a>
+        <a href="/journal">Journal</a>
+        <a href="/setup">Einstellungen</a>
+      </div>
+    </nav>
+  </header>
+  <main>
+    <div class="card">
+      <h1>Chat mit Victor</h1>
+      <p><span class="status off">Lokaler Entwicklungsmodus – keine echte KI</span></p>
+      <p class="muted">Victor zeigt hier nur den lokal erkannten Auftrag (Phase 3, deterministisch, ohne externe Dienste).</p>
+      <div id="messages" class="chat-box" aria-live="polite"></div>
+      <form id="chat-form" class="chat-form">
+        <input id="chat-input" type="text" placeholder="z. B. Vereinbare einen Termin mit Jacko." autocomplete="off" />
+        <button type="submit">Senden</button>
+      </form>
+      <details style="margin-top:12px">
+        <summary>Lokal erkannter Zustand (JSON)</summary>
+        <pre id="state-view" style="white-space:pre-wrap;font-size:0.85rem">–</pre>
+      </details>
+    </div>
+  </main>
+  <footer>victor-ai-assistant · Phase 3 · lokal, keine externen Dienste</footer>
+  <script src="/chat.js"></script>
+</body>
+</html>
