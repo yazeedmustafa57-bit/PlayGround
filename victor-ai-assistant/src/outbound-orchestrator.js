@@ -84,6 +84,7 @@ async function startCall({ instruction, to, contactName, goal, twilioClient } = 
     to: target,
     contactName: contactName || plan.contactName || null,
     goal: goal || plan.goal || instruction || '',
+    message: plan.message || null,
     purpose: plan.purpose || null,
     status: result.simulated ? 'simulated-ringing' : 'ringing',
     simulated: result.simulated,

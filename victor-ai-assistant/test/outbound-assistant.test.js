@@ -41,14 +41,27 @@ test('Anweisung lokal: erfindet keine Nummer', () => {
   assert.equal(p.to, null);
 });
 
-test('Kontakt aus „Rufe Beling an“ (auch kleingeschrieben), Schutz vor Stoppwörtern', () => {
+test('Kontakt mit bitte + Apposition („Ruf bitte Herrn Beling, meinen Arbeitgeber, an“)', () => {
   const { extractContactName } = require('../src/call-controller');
-  assert.equal(extractContactName('Rufe Beling an und sag ihm Bescheid.'), 'Beling');
-  assert.equal(extractContactName('Rufe beling an.'), 'Beling');
-  assert.equal(extractContactName('Ruf Herrn Beling an.'), 'Beling');
+  assert.equal(extractContactName('Ruf Herrn Beling an'), 'Beling');
+  assert.equal(extractContactName('Ruf bitte Herrn Beling an'), 'Beling');
+  assert.equal(extractContactName('Ruf bitte Herrn Beling, meinen Arbeitgeber, an'), 'Beling');
+  assert.equal(extractContactName('Rufe Herrn Beling, meinen Arbeitgeber, an'), 'Beling');
+  assert.equal(
+    extractContactName('Ruf bitte Herrn Beling an und sag ihm, dass ich diese Woche krankgeschrieben bin.'),
+    'Beling'
+  );
+});
+
+test('Organisation ohne Person bleibt ohne Kontakt (kein Erfinden)', () => {
+  const { extractContactName } = require('../src/call-controller');
+  assert.equal(extractContactName('Ruf diese Zahnarztpraxis an und vereinbare einen Termin.'), null);
+  assert.equal(extractContactName('Ruf bei der Ausländerbehörde an und frag nach.'), null);
   assert.equal(extractContactName('Ruf meinen Arbeitgeber an.'), null);
   assert.equal(extractContactName('Ruf ihn an.'), null);
   assert.equal(extractContactName('Rufe morgen an.'), null);
+  assert.equal(extractContactName('Rufe Beling an und sag ihm Bescheid.'), 'Beling');
+  assert.equal(extractContactName('Rufe beling an.'), 'Beling');
 });
 
 test('Call-Kontext stellt KI-Assistent vor (deutsch, kurz)', () => {
@@ -244,4 +257,74 @@ test('API: /dashboard erreichbar', async () => {
     assert.equal(r.status, 200);
     assert.match(r.body, /KI-Telefonassistent/);
   } finally { await new Promise((r) => server.close(r)); }
+});
+
+test('Regression Beling: Kontakt erkannt, Briefing vollständig, dynamischer Einstieg', async () => {
+  const order = 'Ruf Herrn Beling an, sag ihm, dass ich diese Woche krankgeschrieben bin und ich kann nicht zur Arbeit kommen.';
+  const { parseInstruction } = require('../src/instruction');
+  const { buildCallBriefing } = require('../src/call-briefing');
+  const { buildDynamicFirstGreeting } = require('../src/call-greeting');
+  const plan = parseInstruction(order);
+  assert.equal(plan.contactName, 'Beling');
+  assert.ok(plan.to === null || typeof plan.to === 'string'); // Nummer nur wenn im Text
+  // Session-State wie server.js/startCall ihn baut (message mit goal-Fallback):
+  const state = {
+    purpose: plan.purpose,
+    contactName: plan.contactName,
+    phoneNumber: '+4917680282611',
+    message: plan.message || plan.goal,
+  };
+  const briefing = buildCallBriefing(state);
+  assert.match(briefing, /Beling/);
+  assert.doesNotMatch(briefing, /Nachricht: nicht angegeben/);
+  assert.match(briefing, /krankgeschrieben/);
+  // Dynamische Eröffnung aus Kontext (kurz, ohne Kategorie-Floskel, ohne Identitätsannahme):
+  const fm = buildDynamicFirstGreeting({ contactName: 'Beling', purpose: plan.purpose });
+  assert.equal(fm, 'Guten Tag, hier ist Victor. Ich rufe im Auftrag von Yazeed an.');
+  assert.doesNotMatch(fm, /Beling/);
+  assert.doesNotMatch(fm, /Wie kann ich Ihnen helfen\?/);
+  // Initiierung mit dynamischer firstMessage (Mock, kein Netz):
+  const { createLiveBridge } = require('../src/live-bridge');
+  const handlers = {};
+  const mock = {
+    sent: [], on(ev, cb) { handlers[ev] = cb; },
+    send(s) { this.sent.push(s); }, close() {},
+  };
+  const mockFetch = async () => ({ ok: true, json: async () => ({ signed_url: 'wss://mock/conv?sig=1' }) });
+  const b = createLiveBridge({
+    agentId: 'agent_x', apiKey: 'key_y',
+    firstMessage: buildDynamicFirstGreeting({ contactName: 'Beling', purpose: plan.purpose }),
+    dynamicVariables: { kanal: 'telefon', auftrag: plan.goal, kontakt: plan.contactName },
+    briefing, wsFactory: () => mock, fetchImpl: mockFetch,
+  });
+  const p = b.connect();
+  await new Promise((r) => setTimeout(r, 50));
+  handlers.open();
+  await p;
+  const init = JSON.parse(mock.sent[0]);
+  assert.equal(init.type, 'conversation_initiation_client_data');
+  assert.match(init.conversation_config_override.agent.first_message, /im Auftrag von Yazeed/);
+  assert.doesNotMatch(init.conversation_config_override.agent.first_message, /Beling/);
+  assert.deepEqual(init.dynamic_variables, { kanal: 'telefon', auftrag: plan.goal, kontakt: 'Beling' });
+});
+
+test('Kein lokales ASR-Rewriting: Transcript kommt wörtlich an', async () => {
+  const { createLiveBridge } = require('../src/live-bridge');
+  const handlers = {};
+  const mock = {
+    sent: [], on(ev, cb) { handlers[ev] = cb; },
+    send(s) { this.sent.push(s); }, close() {},
+  };
+  const mockFetch = async () => ({ ok: true, json: async () => ({ signed_url: 'wss://mock/conv?sig=1' }) });
+  let got = null;
+  const b = createLiveBridge({
+    agentId: 'a', apiKey: 'k', wsFactory: () => mock, fetchImpl: mockFetch,
+    onUserTranscript: (t) => { got = t; },
+  });
+  const p = b.connect();
+  await new Promise((r) => setTimeout(r, 50));
+  handlers.open();
+  await p;
+  b.handleMessage(JSON.stringify({ type: 'user_transcript', user_transcription_event: { user_transcript: 'Gefahr.' } }));
+  assert.equal(got, 'Gefahr.', 'keine lokale Uminterpretation des Transkripts');
 });

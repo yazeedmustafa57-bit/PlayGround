@@ -74,19 +74,22 @@ test('3. vollständige Konfiguration (Key + Agent) erkannt', () => {
   assert.ok(buildConversationUrl('agent_test123').includes('agent_test123'));
 });
 
-// 4. KEINE first_message-Schablone: Override wird weggelassen,
-//    Kontext läuft über Briefing + Dynamic Variables.
-test('4. kein first_message-Override (Agent eröffnet selbst)', () => {
+// 4. Dynamische first_message: Override mit kurzem auftragsverankertem Einstieg,
+//    keine statische Schablone, keine Identitätsannahme.
+test('4. first_message-Override dynamisch aus Kontext', () => {
   const b = createElevenBridge({ agentId: 'agent_x', apiKey: 'k' });
   const withContact = b.buildInitiationPayloadForContext({ contactName: 'Jacko', purpose: 'Nachricht übermitteln' });
   assert.equal(withContact.type, 'conversation_initiation_client_data');
-  const override = withContact.conversation_config_override;
-  assert.ok(!override || !override.agent || !override.agent.first_message);
-  const text = JSON.stringify(withContact);
-  assert.doesNotMatch(text, /ich habe eine Nachricht für Sie/);
+  const fm = withContact.conversation_config_override.agent.first_message;
+  assert.equal(fm, 'Guten Tag, hier ist Victor. Ich rufe im Auftrag von Yazeed an.');
+  assert.doesNotMatch(fm, /Jacko/);
+  assert.doesNotMatch(fm, /Es geht um/);
+  assert.doesNotMatch(fm, /Wie kann ich Ihnen helfen\?/);
+  const without = b.buildInitiationPayloadForContext({});
+  assert.ok(!without.conversation_config_override, 'ohne Kontext kein Override (Direct Chat)');
 });
 
-test('4b. Beling-Regression: Kontext vollständig ohne Schablone', () => {
+test('4b. Beling-Regression: dynamischer Einstieg + vollständiger Kontext', () => {
   const { parseInstruction } = require('../src/instruction');
   const b = createElevenBridge({ agentId: 'agent_x', apiKey: 'k' });
   const plan = parseInstruction('Ruf Herrn Beling an und sag ihm, dass ich diese Woche krankgeschrieben bin.');
@@ -97,7 +100,8 @@ test('4b. Beling-Regression: Kontext vollständig ohne Schablone', () => {
   );
   assert.equal(payload.type, 'conversation_initiation_client_data');
   assert.deepEqual(payload.dynamic_variables, { auftrag: plan.goal, kontakt: 'Beling' });
-  assert.ok(!payload.conversation_config_override);
+  assert.match(payload.conversation_config_override.agent.first_message, /Yazeed/);
+  assert.doesNotMatch(payload.conversation_config_override.agent.first_message, /Beling/);
 });
 
 // 5. Briefing wird mit 4 Blöcken erzeugt
@@ -247,4 +251,19 @@ test('15. Status-Endpunkt: configured false, keine Secrets', async () => {
   } finally {
     await new Promise((r) => server.close(r));
   }
+});
+
+// 8b. Freigabe-Regression (Beling-Krankmeldung): nur Vorhandenes freigegeben,
+// Telefon trotz vollständigem Auftrag standardmäßig maskiert.
+test('8b. nur vorhandene Kategorien freigegeben, Telefon maskiert', () => {
+  const { buildCallBriefing } = require('../src/call-briefing');
+  const t = buildCallBriefing({
+    purpose: 'Nachricht übermitteln',
+    contactName: 'Beling',
+    phoneNumber: '017612345678',
+    message: 'Ich bin diese Woche krankgeschrieben.',
+  });
+  assert.match(t, /Beling/);
+  assert.doesNotMatch(t, /017612345678/);
+  assert.match(t, /\*\*\*/);
 });

@@ -65,7 +65,10 @@ function extractContactName(text) {
   // „Ruf(e) X an“ – z. B. „Rufe Beling an“. Mit Stoppwort-Schutz, damit kein
   // Artikel/Rollenwort/Zeitwort als Name gespeichert wird („Ruf meinen
   // Arbeitgeber an“ -> null, „Ruf morgen an“ -> null).
-  m = s.match(/\bruf[e]?\s+(?:bitte\s+)?(?:(?:herrn|frau|herr|dr\.?|doktor)\s+)?([A-Za-zäöüÄÖÜß][A-Za-zäöüÄÖÜß-]*)\s+an\b/i);
+  // Apposition erlaubt: „Ruf bitte Herrn Beling, meinen Arbeitgeber, an“ ->
+  // Beling. Die Apposition ist strikt kommagetrennt und wortbegrenzt (inkl.
+  // optionalem Schlusskomma), damit keine beliebigen Satzteile geschluckt werden.
+  m = s.match(/\bruf[e]?\s+(?:bitte\s+)?(?:(?:herrn|frau|herr|dr\.?|doktor)\s+)?([A-Za-zäöüÄÖÜß][A-Za-zäöüÄÖÜß-]*)((?:\s*,\s*[A-Za-zäöüÄÖÜß][A-Za-zäöüÄÖÜß-]*(?:\s+[A-Za-zäöüÄÖÜß][A-Za-zäöüÄÖÜß-]*){0,4}\s*,?)*)\s+an\b/i);
   if (m) {
     const n = cleanName(m[1]);
     if (n && !isNonNameWord(m[1])) return n;

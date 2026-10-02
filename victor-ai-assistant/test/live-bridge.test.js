@@ -250,3 +250,121 @@ test('REGRESSION (Prod-Bug): kein Senden bei readyState 0 trotz OPEN===1', async
   assert.equal(mock.sent.length, 1);
   assert.equal(JSON.parse(mock.sent[0]).type, 'conversation_initiation_client_data');
 });
+
+test('REIHENFOLGE: Briefing vor erstem User-Audio (Auftrag beim ersten Turn bekannt)', async () => {
+  // Simuliert exakt den Live-Ablauf: open -> initiation -> metadata -> user audio.
+  // Das Briefing muss synchron bei metadata rausgehen, also VOR jedem Audio-Chunk.
+  const handlers = {};
+  const mock = {
+    sent: [], closed: false,
+    on(ev, cb) { handlers[ev] = cb; },
+    send(s) { this.sent.push(s); },
+    close() {},
+  };
+  const b = createLiveBridge({
+    agentId: 'a', apiKey: 'k',
+    dynamicVariables: { kanal: 'telefon', auftrag: 'Krankmeldung an Beling', kontakt: 'Beling' },
+    briefing: 'AUFTRAG: Krankmeldung an Beling.',
+    wsFactory: () => mock, fetchImpl: mockFetch,
+  });
+  const p = b.connect();
+  await new Promise((r) => setTimeout(r, 30));
+  handlers.open();
+  await p;
+  // 1. Initiierung trägt Vars, KEIN first_message-Override:
+  const init = JSON.parse(mock.sent[0]);
+  assert.equal(init.type, 'conversation_initiation_client_data');
+  assert.deepEqual(init.dynamic_variables, { kanal: 'telefon', auftrag: 'Krankmeldung an Beling', kontakt: 'Beling' });
+  assert.ok(!init.conversation_config_override, 'kein Override ohne firstMessage');
+  // 2. Metadata -> Briefing SOFORT (synchron), noch vor Audio:
+  b.handleMessage(JSON.stringify({
+    type: 'conversation_initiation_metadata',
+    conversation_initiation_metadata_event: { conversation_id: 'c1', user_input_audio_format: 'ulaw_8000', agent_output_audio_format: 'ulaw_8000' },
+  }));
+  assert.equal(mock.sent.length, 2, 'Briefing direkt nach Metadata');
+  const brief = JSON.parse(mock.sent[1]);
+  assert.equal(brief.type, 'contextual_update');
+  assert.match(brief.text, /Beling/);
+  // 3. Erst danach User-Audio:
+  b.sendUserAudio(Buffer.from([0xff, 0x7f]).toString('base64'));
+  assert.equal(mock.sent.length, 3);
+  assert.ok(JSON.parse(mock.sent[2]).user_audio_chunk, 'Audio erst nach Briefing');
+});
+
+test('VETRAG kontaktlos: auftrag+kanal ohne kontakt, kein Override, Briefing bleibt', async () => {
+  // Zahnarzt-Fall: kein Personenname -> kein {{kontakt}}, aber der Auftrag
+  // muss vollständig als Hintergrundkontext ankommen (kein Helper-Fallback).
+  const { parseInstruction } = require('../src/instruction');
+  const { buildCallBriefing } = require('../src/call-briefing');
+  const order = 'Kannst du mir einen Termin vereinbaren beim Zahnarzt ist egal wann hauptsache früh';
+  const plan = parseInstruction(order);
+  assert.equal(plan.contactName, null);
+  assert.equal(plan.purpose, 'Termin vereinbaren');
+  const vars = { kanal: 'telefon', auftrag: plan.goal.slice(0, 500) };
+  assert.ok(vars.auftrag && vars.kanal);
+  assert.ok(!('kontakt' in vars), 'kontakt fehlt (nicht erfunden)');
+  const state = { purpose: plan.purpose, contactName: plan.contactName, phoneNumber: null, message: plan.message || plan.goal };
+  const briefing = buildCallBriefing(state);
+  assert.match(briefing, /Termin vereinbaren/);
+  assert.doesNotMatch(briefing, /Kontaktname: (?!nicht angegeben)[A-ZÄÖÜ]/);
+  const handlers = {};
+  const mock = { sent: [], on(ev, cb) { handlers[ev] = cb; }, send(s) { this.sent.push(s); }, close() {} };
+  const b = createLiveBridge({
+    agentId: 'a', apiKey: 'k', dynamicVariables: vars, briefing,
+    wsFactory: () => mock, fetchImpl: mockFetch,
+  });
+  const p = b.connect();
+  await new Promise((r) => setTimeout(r, 30));
+  handlers.open();
+  await p;
+  const init = JSON.parse(mock.sent[0]);
+  assert.ok(!init.conversation_config_override, 'kein first_message-Override');
+  assert.equal(init.dynamic_variables.kanal, 'telefon');
+  assert.match(init.dynamic_variables.auftrag, /Zahnarzt/);
+  b.handleMessage(JSON.stringify({
+    type: 'conversation_initiation_metadata',
+    conversation_initiation_metadata_event: { conversation_id: 'c9', user_input_audio_format: 'ulaw_8000', agent_output_audio_format: 'ulaw_8000' },
+  }));
+  assert.equal(JSON.parse(mock.sent[1]).type, 'contextual_update');
+});
+
+test('VERTRAG Telefonmodus: kanal=telefon + auftrag immer dabei, nie Override', async () => {
+  // Schützt davor, dass der Telefonmodus-Kontext (Erdung des realen Anrufs)
+  // aus der Initiierung entfernt wird. Kein Override -> keine Schablone.
+  const handlers = {};
+  const mock = { sent: [], on(ev, cb) { handlers[ev] = cb; }, send(s) { this.sent.push(s); }, close() {} };
+  const b = createLiveBridge({
+    agentId: 'a', apiKey: 'k',
+    dynamicVariables: { kanal: 'telefon', auftrag: 'Krankmeldung an Beling' },
+    briefing: 'AUFTRAG: Krankmeldung.',
+    wsFactory: () => mock, fetchImpl: mockFetch,
+  });
+  const p = b.connect();
+  await new Promise((r) => setTimeout(r, 30));
+  handlers.open();
+  await p;
+  const init = JSON.parse(mock.sent[0]);
+  assert.equal(init.dynamic_variables.kanal, 'telefon', 'Kanal-Signal vorhanden');
+  assert.ok(init.dynamic_variables.auftrag, 'Auftrag vorhanden');
+  assert.ok(!init.conversation_config_override, 'kein Override');
+  b.handleMessage(JSON.stringify({
+    type: 'conversation_initiation_metadata',
+    conversation_initiation_metadata_event: { conversation_id: 'ct', user_input_audio_format: 'ulaw_8000', agent_output_audio_format: 'ulaw_8000' },
+  }));
+  assert.equal(JSON.parse(mock.sent[1]).type, 'contextual_update', 'Briefing als Hintergrund, kein Turn');
+});
+
+test('PAYLOAD-RAHMUNG: auftrag mit Laufzeit-Etikett, Original unverändert', () => {
+  const { buildPhoneVars } = require('../src/server.js');
+  const order = 'Ruf bitte bei der Ausländerbehörde an und vereinbare einen Termin';
+  const withContact = buildPhoneVars({ goal: order, contactName: 'Beling' });
+  assert.equal(withContact.kanal, 'telefon');
+  assert.equal(withContact.kontakt, 'Beling');
+  assert.ok(withContact.auftrag.startsWith('Bereits laufendes Telefonat – jetzt auszuführender Auftrag: '));
+  assert.ok(withContact.auftrag.endsWith(order), 'Originaltext unverändert enthalten');
+  const withoutContact = buildPhoneVars({ goal: order, contactName: null });
+  assert.ok(!('kontakt' in withoutContact), 'kontakt fehlt (nicht erfunden)');
+  assert.ok(withoutContact.auftrag.includes(order));
+  assert.deepEqual(buildPhoneVars(null), { kanal: 'telefon' });
+  assert.deepEqual(buildPhoneVars({ goal: '', contactName: null }), { kanal: 'telefon' });
+});

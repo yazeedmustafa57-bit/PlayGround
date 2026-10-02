@@ -29,6 +29,19 @@ const { buildDynamicFirstGreeting } = require('./call-greeting');
 const { buildCallBriefing } = require('./call-briefing');
 const { getElevenLabsConfig } = require('./elevenlabs-config');
 
+// Baut die Dynamic Variables für den Telefon-Agenten aus der Session.
+// Der Auftragstext selbst bleibt unverändert; nur das Etikett davor kennzeichnet
+// ihn als bereits laufenden Vorgang (kein Skript, keine Wortvorgabe). Verhindert,
+// dass Imperative wie "Ruf bitte an ..." als zukünftige Aufgabe gelesen werden.
+function buildPhoneVars(session) {
+  const goal = session && session.goal ? String(session.goal) : '';
+  const contactName = session ? session.contactName : null;
+  const vars = { kanal: 'telefon' };
+  if (goal) vars.auftrag = 'Bereits laufendes Telefonat – jetzt auszuführender Auftrag: ' + goal.slice(0, 500);
+  if (contactName) vars.kontakt = contactName;
+  return vars;
+}
+
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 
 const SECURITY_HEADERS = {
@@ -237,14 +250,14 @@ function attachWebSockets(server) {
         agentConfigured: (elCfg.agentId || '').length > 0,
       });
       const ctx = session
-        ? { contactName: session.contactName, purpose: session.purpose }
+        ? { contactName: session.contactName, purpose: session.purpose, agentName: appCfg.agentName }
         : {};
-      const goal = session ? session.goal : '';
-      const vars = { kanal: 'telefon' };
-      if (goal) vars.auftrag = String(goal).slice(0, 500);
-      if (ctx.contactName) vars.kontakt = ctx.contactName;
+      const vars = buildPhoneVars(session);
+      // Briefing-State: vollständiger Auftragsinhalt aus vorhandenen Session-Daten.
+      // message fällt auf goal zurück, damit der konkrete Auftragstext nie als
+      // "nicht angegeben" verloren geht (keine erfundenen Inhalte).
       const state = session
-        ? { purpose: session.purpose, contactName: session.contactName, phoneNumber: session.to }
+        ? { purpose: session.purpose, contactName: session.contactName, phoneNumber: session.to, message: session.message || session.goal || null }
         : {};
       try {
         live = createLiveBridge({
@@ -399,4 +412,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { createServer, createApp, attachWebSockets, getPort, requestHandler: createApp() };
+module.exports = { createServer, createApp, attachWebSockets, getPort, buildPhoneVars, requestHandler: createApp() };

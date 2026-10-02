@@ -187,21 +187,33 @@ test('personal-data-policy: sanitize + redact ohne Hardcodes', () => {
   assert.ok(!String(red.phoneNumber).includes('017612345678'));
 });
 
-test('Keine Schablonen-Begrüßung: Agent formuliert Eröffnung selbst', () => {
-  // Vertrag: buildDynamicFirstGreeting liefert null (keine wörtlich
-  // gesprochene Schablone); Kontext bleibt über instruction/briefing erhalten.
-  assert.equal(buildDynamicFirstGreeting({ contactName: 'Jacko', purpose: 'Nachricht übermitteln' }), null);
-  assert.equal(buildDynamicFirstGreeting({ contactName: 'Jacko', purpose: 'Termin vereinbaren' }), null);
+test('Dynamische First-Message: kurz, ohne Kategorie-Hinweis, ohne Identitätsannahme', () => {
+  // Vertrag: Mit Auftragskontext liefert buildDynamicFirstGreeting nur kurze
+  // Vorstellung + Auftraggeberbezug (Turn-1-Rahmen); der Zweck entsteht danach
+  // natürlich aus dem Auftrag. Ohne Kontext null (Direct Chat).
+  const fm = buildDynamicFirstGreeting({ contactName: 'Jacko', purpose: 'Nachricht übermitteln' });
+  assert.equal(fm, 'Guten Tag, hier ist Victor. Ich rufe im Auftrag von Yazeed an.');
+  assert.doesNotMatch(fm, /Jacko/, 'kein Name des Gegenübers (Identität unbekannt)');
+  assert.doesNotMatch(fm, /Es geht um/, 'keine Kategorie-Floskel');
+  assert.doesNotMatch(fm, /Wie kann ich Ihnen helfen\?/, 'keine Hilfsfrage');
+  assert.doesNotMatch(fm, /\?$/, 'deklaratives Ende (Übergabe, keine Frage)');
+  assert.equal(
+    buildDynamicFirstGreeting({ purpose: 'Termin vereinbaren' }),
+    'Guten Tag, hier ist Victor. Ich rufe im Auftrag von Yazeed an.'
+  );
   assert.equal(buildDynamicFirstGreeting({}), null);
+  assert.equal(buildDynamicFirstGreeting({ contactName: 'Jacko' }), null);
 });
 
-test('Beling-Auftrag: keine Nachricht-Schablone, Kontext vollständig', () => {
+test('Beling-Auftrag: kurze Eröffnung + vollständiger Kontext', () => {
   const { parseInstruction } = require('../src/instruction');
   const { buildCallBriefing } = require('../src/call-briefing');
   const plan = parseInstruction('Ruf Herrn Beling an und sag ihm, dass ich diese Woche krankgeschrieben bin.');
   assert.equal(plan.contactName, 'Beling');
   assert.equal(plan.purpose, 'Nachricht übermitteln');
-  assert.equal(buildDynamicFirstGreeting({ contactName: plan.contactName, purpose: plan.purpose }), null);
+  const fm = buildDynamicFirstGreeting({ contactName: plan.contactName, purpose: plan.purpose });
+  assert.doesNotMatch(fm, /Beling/, 'keine Identitätsbehauptung');
+  assert.doesNotMatch(fm, /Es geht um/, 'keine Kategorie-Floskel');
   const briefing = buildCallBriefing(plan.state);
   assert.match(briefing, /Beling/);
   assert.doesNotMatch(briefing, /ich habe eine Nachricht für Sie/);
@@ -235,5 +247,18 @@ test('POST /api/test/message liefert erkannten Zustand (lokal)', async () => {
     assert.equal(json.message, 'Ich komme morgen später.');
   } finally {
     await new Promise((r) => server.close(r));
+  }
+});
+
+test('Kurz-Token löschen keinen aktiven Auftrag (Okay/Danke/Hallo)', () => {
+  const { createInitialState, processUserMessage } = require('../src/call-controller');
+  let state = createInitialState();
+  ({ state } = processUserMessage(state, 'Ruf Herrn Beling an, sag ihm, dass ich diese Woche krankgeschrieben bin.'));
+  assert.equal(state.contactName, 'Beling');
+  const purposeBefore = state.purpose;
+  for (const token of ['Okay.', 'Danke.', 'Hallo.', 'Ja.', 'Alles klar.']) {
+    ({ state } = processUserMessage(state, token));
+    assert.equal(state.contactName, 'Beling', `Kontakt bleibt bei ${token}`);
+    assert.equal(state.purpose, purposeBefore, `Zweck bleibt bei ${token}`);
   }
 });

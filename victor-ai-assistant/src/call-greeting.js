@@ -1,24 +1,28 @@
 'use strict';
 
-// Entscheidungsstelle für die Gesprächseröffnung (first_message).
+// Entscheidungsstelle für die Gesprächseröffnung (first_message) bei
+// AUSGEHENDEN Telefonaten.
 //
-// BEWUSSTE ENTSCHEIDUNG (kein Bug): Diese Funktion liefert KEINE
-// vorformulierte Gesprächsrede mehr zurück, sondern null.
-// Begründung: Eine code-seitig erzeugte Schablone (z. B.
-// „… ich habe eine Nachricht für Sie.“) wird von ElevenLabs als
-// first_message WÖRTLICH gesprochen und wirkt wie ein Callcenter-Skript.
-// Stattdessen formuliert der Agent die Eröffnung selbst aus dem bereits
-// übergebenen Kontext (Briefing als contextual_update + dynamic_variables
-// auftrag/kontakt). Der Auftrag selbst bleibt davon unberührt und wird
-// weiterhin vollständig übergeben (siehe instruction.js / call-briefing.js).
+// Konzept (keine statische Schablone, keine Kategorie-Hinweise wie
+// „Es geht um …“): Die Eröffnung nennt nur kurz Vorstellung und
+// Auftraggeberbezug und übergibt dann das Wort. Der eigentliche
+// Gesprächszweck entsteht danach natürlich aus dem vollständigen Auftrag,
+// den der Agent als Kontext besitzt. So stabilisiert Turn 1 den
+// Outbound-Rahmen, ohne Inhalt vorwegzunehmen oder zu schematisieren.
+// Ohne Auftragskontext (Direct Chat) -> null (kein Override).
+
+const PRINCIPAL_FIRST_NAME = 'Yazeed';
 
 function getGreeting() {
   return 'Hallo, hier ist Victor.';
 }
 
 function buildDynamicFirstGreeting(context) {
-  void context;
-  return null;
+  const ctx = context && typeof context === 'object' ? context : {};
+  const purpose = typeof ctx.purpose === 'string' && ctx.purpose.trim() ? ctx.purpose.trim() : null;
+  if (!purpose) return null;
+  const agent = typeof ctx.agentName === 'string' && ctx.agentName.trim() ? ctx.agentName.trim() : 'Victor';
+  return `Guten Tag, hier ist ${agent}. Ich rufe im Auftrag von ${PRINCIPAL_FIRST_NAME} an.`;
 }
 
-module.exports = { getGreeting, buildDynamicFirstGreeting };
+module.exports = { getGreeting, buildDynamicFirstGreeting, PRINCIPAL_FIRST_NAME };
