@@ -1,16 +1,22 @@
 {
   "name": "victor-ai-assistant",
-  "version": "0.5.0",
-  "description": "Victor: Backend, Gesprächslogik, ElevenLabs-Bridge und Twilio-Scaffolding (lokal, keine Live-Calls).",
+  "version": "0.7.1",
+  "description": "Victor KI-Telefonassistent: Live-Anrufe via Twilio Media Stream <-> ElevenLabs Conversational AI Agent (Helmut), Express+WS-Dashboard.",
   "main": "src/server.js",
   "type": "commonjs",
   "scripts": {
     "start": "node src/server.js",
-    "test": "node --test test/audit-regressions.test.js test/phase3-logic.test.js test/phase4-bridge.test.js test/phase5-rest.test.js"
+    "test": "node --test test/audit-regressions.test.js test/phase3-logic.test.js test/phase4-bridge.test.js test/phase5-rest.test.js test/outbound-assistant.test.js test/live-bridge.test.js test/uplink-diagnostics.test.js"
   },
   "engines": {
     "node": ">=18"
   },
   "license": "UNLICENSED",
-  "dependencies": {}
+  "dependencies": {
+    "@elevenlabs/elevenlabs-js": "^2.12.0",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "twilio": "^5.3.0",
+    "ws": "^8.18.0"
+  }
 }

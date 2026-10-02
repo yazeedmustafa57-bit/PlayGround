@@ -1,0 +1,54 @@
+/* Dashboard-Feinschliff auf Basis von style.css */
+
+.dash-grid {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr 0.85fr;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.dash-grid .card { margin-bottom: 0; }
+
+.dash-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.dash-head h1 { margin-bottom: 4px; }
+.dash-head p { margin: 0; max-width: 720px; }
+
+#plan-box {
+  white-space: pre-wrap;
+  background: #f8fafd;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  min-height: 20px;
+}
+
+#plan-box:empty { display: none; }
+
+#call-status {
+  background: #f8fafd;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  min-height: 20px;
+}
+
+#call-status:empty { display: none; }
+
+#transcript { min-height: 180px; }
+
+@media (max-width: 1080px) {
+  .dash-grid { grid-template-columns: 1fr 1fr; }
+  .dash-grid aside.card { grid-column: 1 / -1; }
+}
+
+@media (max-width: 760px) {
+  .dash-grid { grid-template-columns: 1fr; }
+}

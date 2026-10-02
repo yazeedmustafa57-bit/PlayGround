@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Echtzeit-Sprachchat mit Victor." />
+  <meta name="theme-color" content="#0d1b33" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d1b33'/%3E%3Ctext x='32' y='44' font-family='Arial' font-size='36' font-weight='bold' fill='white' text-anchor='middle'%3EV%3C/text%3E%3C/svg%3E" />
   <title>Echtzeit-Sprachchat – Victor</title>
   <link rel="stylesheet" href="/style.css" />
 </head>
@@ -11,6 +14,7 @@
     <nav>
       <a class="brand" href="/">Victor</a>
       <div class="links">
+        <a href="/dashboard">Dashboard</a>
         <a href="/chat">Chat</a>
         <a href="/eleven-chat" class="active">Sprachchat</a>
         <a href="/call">Telefon</a>
@@ -21,17 +25,18 @@
   </header>
   <main>
     <div class="card">
+      <span class="section-label">Sprache in Echtzeit</span>
       <h1>Victor Echtzeit-Sprachchat</h1>
       <p><span class="status" id="bridge-status">Noch nicht verbunden</span></p>
-      <p class="muted">Hier wird später der echte ElevenLabs-Echtzeit-Sprachassistent (Audio ↔ ElevenLabs Conversational AI ↔ Audio) angeschlossen. Der lokale Bridge-Status wird unten live vom Server abgefragt – es werden dabei keine Secrets übertragen.</p>
+      <p class="muted">Sprich direkt mit Victor – sobald die ElevenLabs-Verbindung aktiv ist, läuft das Gespräch in Echtzeit (Audio ↔ ElevenLabs Conversational AI ↔ Audio). Der aktuelle Bridge-Status wird live vom Server abgefragt, ohne dass Secrets übertragen werden.</p>
       <button class="btn" disabled title="Später verfügbar">Mikrofon – Später verfügbar</button>
       <details style="margin-top:12px">
-        <summary>Lokaler Bridge-Status (JSON)</summary>
-        <pre id="bridge-state" style="white-space:pre-wrap;font-size:0.85rem">lädt …</pre>
+        <summary>Bridge-Status (Details)</summary>
+        <pre id="bridge-state">lädt …</pre>
       </details>
     </div>
   </main>
-  <footer>victor-ai-assistant · lokal, keine externen Dienste</footer>
+  <footer>Victor · KI-Telefonassistent</footer>
   <script>
     fetch('/api/elevenlabs/status').then((r) => r.json()).then((s) => {
       document.getElementById('bridge-state').textContent = JSON.stringify(s, null, 2);

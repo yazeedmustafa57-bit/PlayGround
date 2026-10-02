@@ -35,7 +35,19 @@ function getPublicStatus() {
   return {
     configured: isFullyConfigured(),
     agentConfigured: isAgentConfigured(),
+    keyConfigured: isApiKeyConfigured(),
     connected: false,
+    voiceConfigured: readEnv('ELEVENLABS_VOICE_ID').length > 0,
+    sttModel: readEnv('ELEVENLABS_STT_MODEL') || 'scribe_v2_realtime',
+    ttsModel: readEnv('ELEVENLABS_TTS_MODEL') || 'eleven_flash_v2_5',
+  };
+}
+
+function getVoiceSettings() {
+  return {
+    voiceId: readEnv('ELEVENLABS_VOICE_ID'),
+    sttModel: readEnv('ELEVENLABS_STT_MODEL') || 'scribe_v2_realtime',
+    ttsModel: readEnv('ELEVENLABS_TTS_MODEL') || 'eleven_flash_v2_5',
   };
 }
 
@@ -45,4 +57,5 @@ module.exports = {
   isAgentConfigured,
   isFullyConfigured,
   getPublicStatus,
+  getVoiceSettings,
 };

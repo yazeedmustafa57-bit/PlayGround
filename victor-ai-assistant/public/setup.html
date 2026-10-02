@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Einstellungen – Integrationen und Verbindungsstatus." />
+  <meta name="theme-color" content="#0d1b33" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d1b33'/%3E%3Ctext x='32' y='44' font-family='Arial' font-size='36' font-weight='bold' fill='white' text-anchor='middle'%3EV%3C/text%3E%3C/svg%3E" />
   <title>Einstellungen – Victor</title>
   <link rel="stylesheet" href="/style.css" />
 </head>
@@ -11,6 +14,7 @@
     <nav>
       <a class="brand" href="/">Victor</a>
       <div class="links">
+        <a href="/dashboard">Dashboard</a>
         <a href="/chat">Chat</a>
         <a href="/eleven-chat">Sprachchat</a>
         <a href="/call">Telefon</a>
@@ -21,15 +25,54 @@
   </header>
   <main>
     <div class="card">
+      <span class="section-label">Konfiguration</span>
       <h1>Einstellungen</h1>
-      <p class="muted">Status der später benötigten Integrationen. Es werden keine Secrets angezeigt oder gespeichert.</p>
+      <p class="muted">Live-Verbindungsstatus aller Dienste (wird direkt vom Server abgefragt). Zugangsdaten stehen ausschließlich in der <code>.env</code>-Datei auf dem Server – hier werden niemals Secrets angezeigt.</p>
       <ul class="list">
-        <li><span>ElevenLabs</span><span class="status off">Noch nicht verbunden</span></li>
-        <li><span>Twilio</span><span class="status off">Noch nicht verbunden</span></li>
-        <li><span>Cloudflare</span><span class="status off">Noch nicht verbunden</span></li>
+        <li><span>ElevenLabs (Sprache)</span><span class="status off" id="el-status">prüft …</span></li>
+        <li><span>Twilio (Telefonie)</span><span class="status off" id="tw-status">prüft …</span></li>
+        <li><span>Cloudflare (Zugang)</span><span class="status off" id="cf-status">prüft …</span></li>
       </ul>
+      <p class="muted small" id="setup-hint"></p>
     </div>
   </main>
-  <footer>victor-ai-assistant · Phase 2 · lokal</footer>
+  <footer>Victor · KI-Telefonassistent</footer>
+  <script>
+    function setBadge(id, ok, onText) {
+      const b = document.getElementById(id);
+      b.textContent = ok ? onText : 'Noch nicht verbunden';
+      b.classList.toggle('ok', ok);
+      b.classList.toggle('off', !ok);
+    }
+    fetch('/api/settings').then((r) => r.json()).then((d) => {
+      const s = (d && d.settings) || {};
+      const el = (s.elevenlabs) || {};
+      const hint = document.getElementById('setup-hint');
+      const hints = [];
+      if (el.agentConfigured) {
+        setBadge('el-status', true, 'Verbunden');
+      } else if (el.keyConfigured) {
+        // Key + Stimme OK (live getestet), nur die Agent-ID fehlt noch.
+        const b = document.getElementById('el-status');
+        b.textContent = el.voiceConfigured
+          ? 'Stimme bereit – Agent fehlt'
+          : 'Key OK – Stimme + Agent fehlen';
+        b.classList.remove('off');
+        hints.push('ElevenLabs: API-Key und Stimme sind geprüft – es fehlt nur noch die Agent-ID für den Conversational AI Agent.');
+      } else {
+        setBadge('el-status', false);
+      }
+      setBadge('tw-status', !!(s.twilio && s.twilio.configured), 'Verbunden');
+      setBadge('cf-status', !!(s.cloudflare && s.cloudflare.connected), 'Erreichbar');
+      if (s.twilio && s.twilio.configured) {
+        hints.push('Twilio ist verbunden – ausgehende Anrufe sind über das Dashboard möglich.');
+      }
+      hint.textContent = hints.join(' ');
+    }).catch(() => {
+      setBadge('el-status', false);
+      setBadge('tw-status', false);
+      setBadge('cf-status', false);
+    });
+  </script>
 </body>
 </html>

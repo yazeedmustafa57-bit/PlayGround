@@ -74,16 +74,30 @@ test('3. vollständige Konfiguration (Key + Agent) erkannt', () => {
   assert.ok(buildConversationUrl('agent_test123').includes('agent_test123'));
 });
 
-// 4. first_message wird aus Context erzeugt (nicht hardcodiert)
-test('4. first_message aus Context, variierend', () => {
+// 4. KEINE first_message-Schablone: Override wird weggelassen,
+//    Kontext läuft über Briefing + Dynamic Variables.
+test('4. kein first_message-Override (Agent eröffnet selbst)', () => {
   const b = createElevenBridge({ agentId: 'agent_x', apiKey: 'k' });
   const withContact = b.buildInitiationPayloadForContext({ contactName: 'Jacko', purpose: 'Nachricht übermitteln' });
-  const without = b.buildInitiationPayloadForContext({});
-  const fm1 = withContact.conversation_config_override.agent.first_message;
-  const fm2 = without.conversation_config_override.agent.first_message;
-  assert.ok(fm1.includes('Jacko'));
-  assert.notEqual(fm1, fm2);
-  assert.ok(!/KI-Assistent/i.test(fm1));
+  assert.equal(withContact.type, 'conversation_initiation_client_data');
+  const override = withContact.conversation_config_override;
+  assert.ok(!override || !override.agent || !override.agent.first_message);
+  const text = JSON.stringify(withContact);
+  assert.doesNotMatch(text, /ich habe eine Nachricht für Sie/);
+});
+
+test('4b. Beling-Regression: Kontext vollständig ohne Schablone', () => {
+  const { parseInstruction } = require('../src/instruction');
+  const b = createElevenBridge({ agentId: 'agent_x', apiKey: 'k' });
+  const plan = parseInstruction('Ruf Herrn Beling an und sag ihm, dass ich diese Woche krankgeschrieben bin.');
+  assert.equal(plan.contactName, 'Beling');
+  const payload = b.buildInitiationPayloadForContext(
+    { contactName: plan.contactName, purpose: plan.purpose },
+    { dynamicVariables: { auftrag: plan.goal, kontakt: plan.contactName } }
+  );
+  assert.equal(payload.type, 'conversation_initiation_client_data');
+  assert.deepEqual(payload.dynamic_variables, { auftrag: plan.goal, kontakt: 'Beling' });
+  assert.ok(!payload.conversation_config_override);
 });
 
 // 5. Briefing wird mit 4 Blöcken erzeugt
@@ -141,7 +155,7 @@ test('10. Fehler sauber (NO_WS_FACTORY, send ohne Connect)', () => {
   assert.throws(() => b2.sendAudio('abc'), /not connected/i);
 });
 
-// 11. Mock-WebSocket: Initiation-Payload korrekt
+// 11. Mock-WebSocket: Initiation-Payload korrekt (ohne Schablone)
 test('11. Initiation über Mock gesendet', () => {
   const mock = createMockWs();
   const b = createElevenBridge({ agentId: 'agent_x', apiKey: 'k', wsFactory: () => mock });
@@ -149,9 +163,9 @@ test('11. Initiation über Mock gesendet', () => {
   mock.trigger('open');
   const payload = b.sendInitiation({ contactName: 'Jacko' });
   assert.equal(payload.type, 'conversation_initiation_client_data');
-  assert.ok(payload.conversation_config_override.agent.first_message.includes('Jacko'));
   const sent = JSON.parse(mock.sent[mock.sent.length - 1]);
   assert.equal(sent.type, 'conversation_initiation_client_data');
+  assert.doesNotMatch(JSON.stringify(sent), /ich habe eine Nachricht für Sie/);
 });
 
 // 12. Audio-Nachricht wird verarbeitet und weitergereicht
@@ -206,6 +220,11 @@ test('14. Logs redigieren Key + Telefon', () => {
 // 15. GET /api/elevenlabs/status ohne Secrets
 test('15. Status-Endpunkt: configured false, keine Secrets', async () => {
   const { createServer } = require('../src/server.js');
+  // server.js lädt .env beim Require (dotenv) – danach erneut leeren,
+  // damit der Test deterministisch ohne echte Credentials läuft.
+  delete process.env.ELEVENLABS_API_KEY;
+  delete process.env.ELEVENLABS_AGENT_ID;
+  delete process.env.ELEVENLABS_VOICE_ID;
   const server = createServer();
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   try {

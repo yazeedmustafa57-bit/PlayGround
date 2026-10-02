@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Chat mit Victor – Anweisungen per Text geben." />
+  <meta name="theme-color" content="#0d1b33" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d1b33'/%3E%3Ctext x='32' y='44' font-family='Arial' font-size='36' font-weight='bold' fill='white' text-anchor='middle'%3EV%3C/text%3E%3C/svg%3E" />
   <title>Chat – Victor</title>
   <link rel="stylesheet" href="/style.css" />
 </head>
@@ -11,6 +14,7 @@
     <nav>
       <a class="brand" href="/">Victor</a>
       <div class="links">
+        <a href="/dashboard">Dashboard</a>
         <a href="/chat" class="active">Chat</a>
         <a href="/eleven-chat">Sprachchat</a>
         <a href="/call">Telefon</a>
@@ -21,21 +25,22 @@
   </header>
   <main>
     <div class="card">
+      <span class="section-label">Text-Chat</span>
       <h1>Chat mit Victor</h1>
       <p><span class="status off">Lokaler Entwicklungsmodus – keine echte KI</span></p>
-      <p class="muted">Victor zeigt hier nur den lokal erkannten Auftrag (Phase 3, deterministisch, ohne externe Dienste).</p>
+      <p class="muted">Beschreibe deinen Auftrag in eigenen Worten – Victor erkennt Zweck, Kontakt und Nachricht automatisch.</p>
       <div id="messages" class="chat-box" aria-live="polite"></div>
       <form id="chat-form" class="chat-form">
         <input id="chat-input" type="text" placeholder="z. B. Vereinbare einen Termin mit Jacko." autocomplete="off" />
         <button type="submit">Senden</button>
       </form>
       <details style="margin-top:12px">
-        <summary>Lokal erkannter Zustand (JSON)</summary>
-        <pre id="state-view" style="white-space:pre-wrap;font-size:0.85rem">–</pre>
+        <summary>Erkannter Auftrag (Details)</summary>
+        <pre id="state-view">–</pre>
       </details>
     </div>
   </main>
-  <footer>victor-ai-assistant · Phase 3 · lokal, keine externen Dienste</footer>
+  <footer>Victor · KI-Telefonassistent</footer>
   <script src="/chat.js"></script>
 </body>
 </html>

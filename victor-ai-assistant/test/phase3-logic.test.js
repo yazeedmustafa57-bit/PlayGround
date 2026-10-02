@@ -187,12 +187,24 @@ test('personal-data-policy: sanitize + redact ohne Hardcodes', () => {
   assert.ok(!String(red.phoneNumber).includes('017612345678'));
 });
 
-test('Begrüßung variiert, kurz, ohne KI-Floskel', () => {
-  const a = buildDynamicFirstGreeting({ contactName: 'Jacko', purpose: 'Nachricht übermitteln' });
-  const b = buildDynamicFirstGreeting({});
-  assert.ok(a.includes('Jacko'));
-  assert.ok(a.length < 120 && b.length < 120);
-  assert.ok(!/KI-Assistent/i.test(a));
+test('Keine Schablonen-Begrüßung: Agent formuliert Eröffnung selbst', () => {
+  // Vertrag: buildDynamicFirstGreeting liefert null (keine wörtlich
+  // gesprochene Schablone); Kontext bleibt über instruction/briefing erhalten.
+  assert.equal(buildDynamicFirstGreeting({ contactName: 'Jacko', purpose: 'Nachricht übermitteln' }), null);
+  assert.equal(buildDynamicFirstGreeting({ contactName: 'Jacko', purpose: 'Termin vereinbaren' }), null);
+  assert.equal(buildDynamicFirstGreeting({}), null);
+});
+
+test('Beling-Auftrag: keine Nachricht-Schablone, Kontext vollständig', () => {
+  const { parseInstruction } = require('../src/instruction');
+  const { buildCallBriefing } = require('../src/call-briefing');
+  const plan = parseInstruction('Ruf Herrn Beling an und sag ihm, dass ich diese Woche krankgeschrieben bin.');
+  assert.equal(plan.contactName, 'Beling');
+  assert.equal(plan.purpose, 'Nachricht übermitteln');
+  assert.equal(buildDynamicFirstGreeting({ contactName: plan.contactName, purpose: plan.purpose }), null);
+  const briefing = buildCallBriefing(plan.state);
+  assert.match(briefing, /Beling/);
+  assert.doesNotMatch(briefing, /ich habe eine Nachricht für Sie/);
 });
 
 // ---- HTTP-Endpunkt ----

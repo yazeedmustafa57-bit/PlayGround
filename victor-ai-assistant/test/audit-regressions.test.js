@@ -37,8 +37,12 @@ after(async () => {
   if (server) await new Promise((resolve) => server.close(resolve));
 });
 
-test('keine .env im Grundgerüst', () => {
-  assert.equal(fs.existsSync(path.join(root, '.env')), false, '.env darf nicht vorhanden sein');
+test('.env steht in .gitignore und .env.example enthält nur Platzhalter', () => {
+  const gitignore = fs.readFileSync(path.join(root, '.gitignore'), 'utf8');
+  assert.match(gitignore, /^\.env$/m, '.env muss in .gitignore stehen');
+  const example = fs.readFileSync(path.join(root, '.env.example'), 'utf8');
+  assert.doesNotMatch(example, /sk-[A-Za-z0-9]{10,}/, '.env.example darf keine echten Keys enthalten');
+  assert.doesNotMatch(example, /AC[a-z0-9]{20,}/i, '.env.example darf keine echten SIDs enthalten');
 });
 
 test('Platzhalter-Module sind ladbar', () => {

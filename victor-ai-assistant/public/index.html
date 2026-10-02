@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Victor – Dein persönlicher KI-Sprachassistent für Anrufe, Termine und Nachrichten." />
+  <meta name="theme-color" content="#0d1b33" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d1b33'/%3E%3Ctext x='32' y='44' font-family='Arial' font-size='36' font-weight='bold' fill='white' text-anchor='middle'%3EV%3C/text%3E%3C/svg%3E" />
   <title>Victor – Dein persönlicher KI-Sprachassistent</title>
   <link rel="stylesheet" href="/style.css" />
 </head>
@@ -11,6 +14,7 @@
     <nav>
       <a class="brand" href="/">Victor</a>
       <div class="links">
+        <a href="/dashboard">Dashboard</a>
         <a href="/chat">Chat</a>
         <a href="/eleven-chat">Sprachchat</a>
         <a href="/call">Telefon</a>
@@ -20,24 +24,49 @@
     </nav>
   </header>
   <main>
-    <div class="card">
+    <section class="hero">
+      <span class="section-label" style="color:#8ea3c7">KI-Telefonassistent</span>
       <h1>Victor</h1>
-      <p class="muted">Dein persönlicher KI-Sprachassistent</p>
-      <p>Lokale Phase-2-Grundlage: Übersicht und Navigation. Echtzeit-Sprache (ElevenLabs) und Telefonie (Twilio) werden erst in einer späteren Phase angeschlossen.</p>
-      <div class="grid">
-        <a class="btn" href="/chat">Chat</a>
-        <a class="btn secondary" href="/eleven-chat">Echtzeit-Sprachchat</a>
-        <a class="btn secondary" href="/call">Telefon</a>
-        <a class="btn secondary" href="/journal">Journal</a>
-        <a class="btn secondary" href="/setup">Einstellungen</a>
+      <p class="lead">Dein persönlicher KI-Sprachassistent – er telefoniert für dich, vereinbart Termine und übermittelt Nachrichten. Du steuerst alles bequem per Text-Chat.</p>
+      <div class="cta-row">
+        <a class="btn" href="/dashboard">Anruf starten</a>
+        <a class="btn ghost" href="/chat">Chat öffnen</a>
       </div>
+    </section>
+
+    <div class="grid">
+      <a class="feature" href="/dashboard">
+        <strong>Dashboard</strong>
+        <span>Chat, Anrufsteuerung, Einstellungen und Live-Transkript an einem Ort.</span>
+      </a>
+      <a class="feature" href="/chat">
+        <strong>Chat</strong>
+        <span>Anweisungen per Text geben und Aufträge prüfen.</span>
+      </a>
+      <a class="feature" href="/eleven-chat">
+        <strong>Echtzeit-Sprachchat</strong>
+        <span>Direktes Gespräch mit Victor über Sprache.</span>
+      </a>
+      <a class="feature" href="/call">
+        <strong>Telefon</strong>
+        <span>Ausgehende Anrufe über Twilio.</span>
+      </a>
+      <a class="feature" href="/journal">
+        <strong>Journal</strong>
+        <span>Überblick über Gespräche und Aktivitäten.</span>
+      </a>
+      <a class="feature" href="/setup">
+        <strong>Einstellungen</strong>
+        <span>Integrationen und Verbindungsstatus.</span>
+      </a>
     </div>
+
     <div class="card">
-      <h2>Status</h2>
+      <span class="section-label">Betriebsstatus</span>
       <p><span class="status off">Lokaler Modus – keine KI-Verbindung</span></p>
-      <p class="muted">Phase 2: nur lokales Backend + Oberfläche. Keine externen Dienste.</p>
+      <p class="muted small">Alle Daten bleiben lokal, bis Integrationen in den Einstellungen verbunden werden. API-Schlüssel werden ausschließlich über <code>.env</code> verwaltet.</p>
     </div>
   </main>
-  <footer>victor-ai-assistant · Phase 2 · lokal</footer>
+  <footer>Victor · KI-Telefonassistent</footer>
 </body>
 </html>

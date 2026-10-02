@@ -19,17 +19,20 @@ function parseStreamMessage(rawText) {
   } catch {
     const err = new Error('Invalid Twilio stream JSON');
     err.code = 'INVALID_JSON';
+    err.reason = 'invalid-json'; // Diagnose: Verhalten (throw) unverändert.
     throw err;
   }
   if (!msg || typeof msg.event !== 'string' || !VALID_EVENTS.includes(msg.event)) {
     const err = new Error('Unknown Twilio stream event');
     err.code = 'UNKNOWN_EVENT';
+    err.reason = 'unknown-event'; // Diagnose: Verhalten (throw) unverändert.
     throw err;
   }
   return msg;
 }
 
 // Extrahiert base64-Audio aus "media"-Event, validiert Form, gibt null bei leer.
+// Vertrag unverändert (null/throw wie bisher); Throws tragen zusätzlich reason.
 function extractAudioPayload(msg) {
   if (!msg || msg.event !== 'media') return null;
   const payload = msg.media && msg.media.payload;
@@ -37,6 +40,7 @@ function extractAudioPayload(msg) {
   if (!/^[A-Za-z0-9+/=]+$/.test(payload)) {
     const err = new Error('Invalid audio payload encoding');
     err.code = 'INVALID_PAYLOAD';
+    err.reason = 'invalid-payload-encoding'; // Diagnose: Verhalten (throw) unverändert.
     throw err;
   }
   return payload;

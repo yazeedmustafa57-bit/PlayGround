@@ -62,7 +62,33 @@ function extractContactName(text) {
     const n = cleanName(m[1]);
     if (n) return n;
   }
+  // „Ruf(e) X an“ – z. B. „Rufe Beling an“. Mit Stoppwort-Schutz, damit kein
+  // Artikel/Rollenwort/Zeitwort als Name gespeichert wird („Ruf meinen
+  // Arbeitgeber an“ -> null, „Ruf morgen an“ -> null).
+  m = s.match(/\bruf[e]?\s+(?:bitte\s+)?(?:(?:herrn|frau|herr|dr\.?|doktor)\s+)?([A-Za-zäöüÄÖÜß][A-Za-zäöüÄÖÜß-]*)\s+an\b/i);
+  if (m) {
+    const n = cleanName(m[1]);
+    if (n && !isNonNameWord(m[1])) return n;
+  }
   return null;
+}
+
+// Wörter, die niemals Kontaktname sind (Artikel, Rollen, Zeitangaben, Titel).
+const NON_NAME_WORDS = new Set(
+  ['mein', 'meine', 'meinen', 'meinem', 'meines', 'dein', 'deine', 'deinen',
+    'den', 'dem', 'der', 'die', 'das', 'einen', 'einem', 'einer', 'eines',
+    'arbeitgeber', 'arbeitgeberin', 'arzt', 'aerztin', 'ärztin', 'chef', 'chefin',
+    'kollege', 'kollegin', 'kunde', 'kundin', 'versicherung', 'werkstatt',
+    'behoerde', 'behörde', 'amt', 'praxis', 'apotheke', 'firma',
+    'herr', 'herrn', 'frau', 'doktor', 'dr',
+    'heute', 'morgen', 'uebermorgen', 'übermorgen',
+    'montag', 'dienstag', 'mittwoch', 'donnerstag', 'freitag', 'samstag', 'sonntag',
+    'spaeter', 'später', 'gleich', 'bald', 'wieder', 'zurueck', 'zurück',
+    'bitte', 'mal', 'doch', 'schon', 'noch', 'einfach', 'kurz'].map((w) => w.toLowerCase())
+);
+
+function isNonNameWord(raw) {
+  return NON_NAME_WORDS.has(String(raw || '').toLowerCase());
 }
 
 function extractCallerName(text) {
