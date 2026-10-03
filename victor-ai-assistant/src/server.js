@@ -33,12 +33,41 @@ const { getElevenLabsConfig } = require('./elevenlabs-config');
 // Der Auftragstext selbst bleibt unverändert; nur das Etikett davor kennzeichnet
 // ihn als bereits laufenden Vorgang (kein Skript, keine Wortvorgabe). Verhindert,
 // dass Imperative wie "Ruf bitte an ..." als zukünftige Aufgabe gelesen werden.
+// Baut das sichere Auftraggeber-Profil ausschließlich aus lokaler Konfiguration
+// (.env). Nur gesetzte Felder werden übernommen; leere Felder entfallen
+// ersatzlos (keine erfundenen Daten, keine Defaults mit echten Werten).
+function buildPrincipalProfile() {
+  const read = (name) => (typeof process.env[name] === 'string' ? process.env[name].trim() : '');
+  const pick = (key, name) => {
+    const v = read(name);
+    return v ? { [key]: v } : null;
+  };
+  return Object.assign(
+    {},
+    pick('name', 'PRINCIPAL_FULL_NAME'),
+    pick('vorname', 'PRINCIPAL_FIRST_NAME'),
+    pick('nachname', 'PRINCIPAL_LAST_NAME'),
+    pick('geburtsdatum', 'PRINCIPAL_DOB'),
+    pick('telefon', 'PRINCIPAL_PHONE'),
+    pick('telefon_e164', 'PRINCIPAL_PHONE_E164'),
+    pick('strasse', 'PRINCIPAL_STREET'),
+    pick('hausnummer', 'PRINCIPAL_HOUSE_NO'),
+    pick('plz', 'PRINCIPAL_ZIP'),
+    pick('ort', 'PRINCIPAL_CITY')
+  );
+}
+
 function buildPhoneVars(session) {
   const goal = session && session.goal ? String(session.goal) : '';
   const contactName = session ? session.contactName : null;
   const vars = { kanal: 'telefon' };
   if (goal) vars.auftrag = 'Bereits laufendes Telefonat – jetzt auszuführender Auftrag: ' + goal.slice(0, 500);
   if (contactName) vars.kontakt = contactName;
+  // Auftraggeber-Profil (strukturiert, nur gesetzte Felder) sowie
+  // Abwärtskompatibilität: Vollname zusätzlich als Einzel-Feld.
+  const profil = buildPrincipalProfile();
+  if (Object.keys(profil).length > 0) vars.profil = profil;
+  if (profil.name) vars.auftraggeber = profil.name;
   return vars;
 }
 
@@ -412,4 +441,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { createServer, createApp, attachWebSockets, getPort, buildPhoneVars, requestHandler: createApp() };
+module.exports = { createServer, createApp, attachWebSockets, getPort, buildPhoneVars, buildPrincipalProfile, requestHandler: createApp() };

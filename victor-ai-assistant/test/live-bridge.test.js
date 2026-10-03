@@ -3,8 +3,46 @@
 // Tests: Audio-Codec + Live-Bridge (Twilio <-> ElevenLabs).
 // Nur lokale Module + Mocks. Kein Netz, keine Secrets, keine echten Calls.
 
-const { test } = require('node:test');
+const { test, beforeEach, afterEach } = require('node:test');
 const assert = require('node:assert/strict');
+
+// Wie in den übrigen Testdateien: Env-Einfluss neutralisieren, damit
+// exakte Assertions deterministisch bleiben (lokale .env darf nichts ändern).
+// server.js wird hier auf Top-Level geladen, damit dotenv genau einmal beim
+// Laden läuft; die Hooks scrubben danach vor jedem einzelnen Test.
+require('../src/server.js');
+const SCRUB_VARS = [
+  'TWILIO_ACCOUNT_SID',
+  'TWILIO_AUTH_TOKEN',
+  'TWILIO_PHONE_NUMBER',
+  'ELEVENLABS_API_KEY',
+  'ELEVENLABS_AGENT_ID',
+  'ELEVENLABS_VOICE_ID',
+  'PRINCIPAL_FULL_NAME',
+  'PRINCIPAL_FIRST_NAME',
+  'PRINCIPAL_LAST_NAME',
+  'PRINCIPAL_DOB',
+  'PRINCIPAL_PHONE',
+  'PRINCIPAL_PHONE_E164',
+  'PRINCIPAL_STREET',
+  'PRINCIPAL_HOUSE_NO',
+  'PRINCIPAL_ZIP',
+  'PRINCIPAL_CITY',
+];
+let savedScrubEnv = {};
+beforeEach(() => {
+  savedScrubEnv = {};
+  for (const k of SCRUB_VARS) {
+    savedScrubEnv[k] = process.env[k];
+    delete process.env[k];
+  }
+});
+afterEach(() => {
+  for (const k of SCRUB_VARS) {
+    if (savedScrubEnv[k] === undefined) delete process.env[k];
+    else process.env[k] = savedScrubEnv[k];
+  }
+});
 
 const codec = require('../src/audio-codec');
 const {
@@ -367,4 +405,46 @@ test('PAYLOAD-RAHMUNG: auftrag mit Laufzeit-Etikett, Original unverändert', () 
   assert.ok(withoutContact.auftrag.includes(order));
   assert.deepEqual(buildPhoneVars(null), { kanal: 'telefon' });
   assert.deepEqual(buildPhoneVars({ goal: '', contactName: null }), { kanal: 'telefon' });
+});
+
+test('AUFTRAGGEBER: nur aus Env, nie erfunden, nie hardcoded', () => {
+  const saved = process.env.PRINCIPAL_FULL_NAME;
+  try {
+    delete process.env.PRINCIPAL_FULL_NAME;
+    const { buildPhoneVars } = require('../src/server.js');
+    assert.ok(!('auftraggeber' in buildPhoneVars({ goal: 'Test', contactName: null })), 'ohne Env kein Feld');
+    process.env.PRINCIPAL_FULL_NAME = 'Test Principal';
+    const withPrincipal = buildPhoneVars({ goal: 'Test', contactName: null });
+    assert.equal(withPrincipal.auftraggeber, 'Test Principal');
+    assert.equal(withPrincipal.kanal, 'telefon');
+    process.env.PRINCIPAL_FULL_NAME = '   ';
+    assert.ok(!('auftraggeber' in buildPhoneVars({ goal: 'Test', contactName: null })), 'Leerzeichen zählt nicht');
+  } finally {
+    if (saved === undefined) delete process.env.PRINCIPAL_FULL_NAME;
+    else process.env.PRINCIPAL_FULL_NAME = saved;
+  }
+});
+
+test('PROFIL: nur gesetzte Env-Felder, synthetische Werte, kein Leak', () => {
+  const FIELDS = ['PRINCIPAL_FULL_NAME','PRINCIPAL_FIRST_NAME','PRINCIPAL_LAST_NAME','PRINCIPAL_DOB','PRINCIPAL_PHONE','PRINCIPAL_PHONE_E164','PRINCIPAL_STREET','PRINCIPAL_HOUSE_NO','PRINCIPAL_ZIP','PRINCIPAL_CITY'];
+  const saved = {};
+  try {
+    for (const k of FIELDS) { saved[k] = process.env[k]; delete process.env[k]; }
+    const { buildPhoneVars, buildPrincipalProfile } = require('../src/server.js');
+    assert.deepEqual(buildPrincipalProfile(), {}, 'leeres Profil ohne Env');
+    assert.ok(!('profil' in buildPhoneVars({ goal: 'Test', contactName: null })), 'kein Profil-Feld ohne Env');
+    process.env.PRINCIPAL_FIRST_NAME = 'SynVorname';
+    process.env.PRINCIPAL_ZIP = '00000';
+    const prof = buildPrincipalProfile();
+    assert.deepEqual(prof, { vorname: 'SynVorname', plz: '00000' }, 'nur gesetzte Felder');
+    const vars = buildPhoneVars({ goal: 'Test', contactName: null });
+    assert.deepEqual(vars.profil, { vorname: 'SynVorname', plz: '00000' });
+    process.env.PRINCIPAL_FIRST_NAME = '   ';
+    assert.ok(!('vorname' in buildPrincipalProfile()), 'Leerzeichen zählt nicht');
+  } finally {
+    for (const k of FIELDS) {
+      if (saved[k] === undefined) delete process.env[k];
+      else process.env[k] = saved[k];
+    }
+  }
 });

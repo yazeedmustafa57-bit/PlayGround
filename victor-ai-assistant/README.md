@@ -83,6 +83,19 @@ Kein LLM-Key nötig.
 Ohne Credentials läuft alles als **Simulation** (kein Netz, kein Anruf, kein
 Fake-Erfolg – als `simulated:true` gekennzeichnet).
 
+## Evaluation (ElevenLabs Agent Testing, textbasiert)
+
+8 synthetische Simulationstests prüfen Verhalten (keine Echtdaten, kein Twilio,
+kein Audio). Nur Text-LLM-Kontingent, keine Telefonminuten:
+
+```bash
+npm run eval                 # benötigt .env (API-Key + Agent-ID)
+npm run eval -- --only vollstaendiger-name --repeat 2
+```
+
+Report: `_test-results/victor-evaluation.md`. `npm test` startet die
+Evaluation bewusst **nicht** (kostenpflichtig).
+
 ## Dashboard
 
 - **Links**: Chat-Verlauf (Anweisungen + Antworten + Transkript-Hinweise)

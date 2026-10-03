@@ -240,6 +240,8 @@ test('API: /api/settings + /api/llm/status ohne Secrets', async () => {
 });
 
 test('API: /voice/outgoing liefert TwiML ohne Say (Agent begrüßt)', async () => {
+  const savedBaseUrl = process.env.PUBLIC_BASE_URL;
+  process.env.PUBLIC_BASE_URL = 'https://example.invalid';
   const server = await startServer();
   try {
     const r = await postJSON(server.address().port, '/voice/outgoing', {});
@@ -247,7 +249,11 @@ test('API: /voice/outgoing liefert TwiML ohne Say (Agent begrüßt)', async () =
     assert.doesNotMatch(r.body, /<Say/);
     assert.match(r.body, /<Response>/);
     assert.match(r.body, /<Stream/);
-  } finally { await new Promise((r) => server.close(r)); }
+  } finally {
+    if (savedBaseUrl === undefined) delete process.env.PUBLIC_BASE_URL;
+    else process.env.PUBLIC_BASE_URL = savedBaseUrl;
+    await new Promise((r) => server.close(r));
+  }
 });
 
 test('API: /dashboard erreichbar', async () => {

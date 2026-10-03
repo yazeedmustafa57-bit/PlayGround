@@ -6,6 +6,7 @@
   "type": "commonjs",
   "scripts": {
     "start": "node src/server.js",
+    "eval": "node scripts/run-eval.js",
     "test": "node --test test/audit-regressions.test.js test/phase3-logic.test.js test/phase4-bridge.test.js test/phase5-rest.test.js test/outbound-assistant.test.js test/live-bridge.test.js test/uplink-diagnostics.test.js"
   },
   "engines": {
