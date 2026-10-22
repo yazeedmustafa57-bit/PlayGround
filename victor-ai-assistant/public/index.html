@@ -37,7 +37,7 @@
     <div class="grid">
       <a class="feature" href="/dashboard">
         <strong>Dashboard</strong>
-        <span>Chat, Anrufsteuerung, Einstellungen und Live-Transkript an einem Ort.</span>
+        <span>Chat, Anrufsteuerung, Einstellungen und Transkript an einem Ort.</span>
       </a>
       <a class="feature" href="/chat">
         <strong>Chat</strong>
@@ -49,7 +49,7 @@
       </a>
       <a class="feature" href="/call">
         <strong>Telefon</strong>
-        <span>Ausgehende Anrufe über Twilio.</span>
+        <span>Telefonie über den ElevenLabs-SIP-Trunk (Status im Dashboard).</span>
       </a>
       <a class="feature" href="/journal">
         <strong>Journal</strong>
@@ -63,10 +63,30 @@
 
     <div class="card">
       <span class="section-label">Betriebsstatus</span>
-      <p><span class="status off">Lokaler Modus – keine KI-Verbindung</span></p>
-      <p class="muted small">Alle Daten bleiben lokal, bis Integrationen in den Einstellungen verbunden werden. API-Schlüssel werden ausschließlich über <code>.env</code> verwaltet.</p>
+      <p><span class="status off" id="ops-status">Status lädt …</span></p>
+      <p class="muted small">Gesprächsdaten gehen nur an die konfigurierten ElevenLabs-Dienste. API-Schlüssel werden ausschließlich über <code>.env</code> verwaltet und nie an den Browser ausgeliefert.</p>
     </div>
   </main>
   <footer>Victor · KI-Telefonassistent</footer>
+  <script>
+    Promise.allSettled([
+      fetch('/api/elevenlabs/status').then((r) => r.json()),
+      fetch('/api/telephony/status').then((r) => r.json()),
+    ]).then(([e, t]) => {
+      const el = e.status === 'fulfilled' ? e.value : {};
+      const tel = t.status === 'fulfilled' ? t.value : {};
+      const b = document.getElementById('ops-status');
+      const parts = [
+        el.verified ? 'ElevenLabs verifiziert' : (el.configured ? 'ElevenLabs nicht verifiziert' : 'ElevenLabs nicht konfiguriert'),
+        tel.verified ? 'Telefonie verifiziert' : (tel.configured ? 'Telefonie nicht verifiziert' : 'Telefonie nicht konfiguriert'),
+      ];
+      b.textContent = parts.join(' · ');
+      b.classList.toggle('ok', Boolean(el.verified && tel.verified));
+      b.classList.toggle('off', !(el.verified && tel.verified));
+    }).catch(() => {
+      const b = document.getElementById('ops-status');
+      b.textContent = 'Status nicht erreichbar';
+    });
+  </script>
 </body>
 </html>

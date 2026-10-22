@@ -30,23 +30,35 @@ Danach in `.env` die echten Werte aus dem Secret-Speicher eintragen:
 |---|---|
 | `ELEVENLABS_API_KEY` | ElevenLabs-Dashboard → API-Keys |
 | `ELEVENLABS_AGENT_ID` | ElevenLabs-Dashboard → Agents → „Victor Telefon“ → Agent-ID |
+| `ELEVENLABS_PHONE_NUMBER_ID` (optional) | ElevenLabs-Dashboard → Phone Numbers → „Zadarma DE“ → ID (`phnum_…`); fehlt sie, wird automatisch ermittelt |
 | `ELEVENLABS_VOICE_ID` | ElevenLabs-Dashboard → Voices → Helmut-Stimme → Voice-ID |
-| `TWILIO_ACCOUNT_SID` | Twilio-Console → Account Info |
-| `TWILIO_AUTH_TOKEN` | Twilio-Console → Account Info |
-| `TWILIO_PHONE_NUMBER` | Twilio-Console → Gekaufte Nummer (E.164-Format) |
 | `PUBLIC_BASE_URL` | Aktuelle öffentliche Tunnel-URL (ändert sich pro Deployment) |
 | `PRINCIPAL_FULL_NAME` u. a. `PRINCIPAL_*` | Eigene Profildaten (siehe `.env.example`) |
 
 `.env` steht in `.gitignore` und wird NIE committed. `.env.example`
 enthält nur leere Platzhalter.
 
-## 4. Twilio-Konfiguration
+## 4. Telefonie-Konfiguration
 
-- Absendernummer = `TWILIO_PHONE_NUMBER` (muss Voice-fähig sein).
-- Voice-Webhooks zeigen auf `<PUBLIC_BASE_URL>/voice/outgoing` bzw.
-  `/voice/status` (siehe `src/twilio-voice.js`, keine Console-Änderung nötig,
-  solange `PUBLIC_BASE_URL` aktuell ist).
-- Deutschland Low-Risk-Voice muss in den Geo Permissions aktiv sein.
+- Telefonie läuft über den bereits bei ElevenLabs importierten
+  **Zadarma-SIP-Trunk** (`+4944168304115`). Twilio wird bewusst nicht verwendet;
+  ein zweites Gateway oder separate Zadarma-Zugangsdaten sind nicht nötig.
+- Benötigt werden nur `ELEVENLABS_API_KEY` und `ELEVENLABS_AGENT_ID`.
+  `ELEVENLABS_PHONE_NUMBER_ID` ist optional und wird sonst automatisch aus dem
+  Agenten ermittelt.
+- `GET /api/elevenlabs/status` prüft den Agenten live, `GET /api/telephony/status`
+  prüft die Nummer live (beides read-only, 60 s gecacht).
+- `GET /api/call/:id/transcript` lädt bei nativen SIP-Anrufen das echte
+  Transkript nach Gesprächsende über `GET /v1/convai/conversations/{id}` nach.
+- SIP `603 Decline` beim ausgehenden INVITE ist ein Zadarma-seitiges Problem
+  (ausgehende Rufnummer/Caller-ID/Tarif) und keine Backend-Fehlkonfiguration.
+- `POST /api/call/start` startet einen echten Anruf erst mit `confirm: true`
+  und verifizierter Nummer; sonst `confirmation-required` bzw.
+  `telephony-unverified`. Ohne Konfiguration bleibt es bei
+  `telephony-unavailable` (kein Fake-Erfolg).
+- `/media-stream` bleibt als provider-neutraler Eingang (8 kHz mulaw, base64)
+  für künftige Gateways erhalten; für den nativen SIP-Trunk nicht erforderlich.
+- `PUBLIC_BASE_URL` bleibt optional für die öffentliche Basis-URL.
 
 ## 5. Startbefehl
 

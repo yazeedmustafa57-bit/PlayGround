@@ -2,7 +2,7 @@
 
 // ElevenLabs Realtime-Sprachbausteine:
 //   STT: Scribe v2 Realtime (Audio → Text) via WebSocket
-//   TTS: Flash v2.5 (Text → Audio, ulaw_8000 für Twilio) via REST
+//   TTS: Flash v2.5 (Text → Audio, ulaw_8000 für Telefonie) via REST
 //
 // Design: reine Payload-Builder + Session-Klasse mit injizierbarem
 // WebSocket/fetch, damit Tests ohne Netz + ohne Key laufen. Kein Auto-Call.
@@ -20,7 +20,7 @@ function getSpeechConfig() {
     voiceId: voice.voiceId,
     sttModel: voice.sttModel,
     ttsModel: voice.ttsModel,
-    outputFormat: 'ulaw_8000', // Twilio-Pflichtformat
+    outputFormat: 'ulaw_8000', // klassisches Telefonie-Format (8 kHz mono ulaw)
   };
 }
 
@@ -64,7 +64,7 @@ function createSttSession({ onTranscript, wsFactory } = {}) {
       }
       return ws;
     },
-    // Twilio liefert mulaw-base64; Scribe erwartet rohes Audio base64 im Feld "audio".
+    // Das Telefonie-Gateway liefert mulaw-base64; Scribe erwartet rohes Audio base64 im Feld "audio".
     sendAudioChunk(ulawBase64) {
       if (!ws) throw new Error('STT session not connected');
       ws.send(JSON.stringify({ audio: String(ulawBase64 || '') }));

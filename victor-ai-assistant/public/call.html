@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Telefon – ausgehende Anrufe mit Victor über Twilio." />
+  <meta name="description" content="Telefon – Victor KI-Telefonassistent." />
   <meta name="theme-color" content="#0d1b33" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d1b33'/%3E%3Ctext x='32' y='44' font-family='Arial' font-size='36' font-weight='bold' fill='white' text-anchor='middle'%3EV%3C/text%3E%3C/svg%3E" />
   <title>Telefon – Victor</title>
@@ -27,13 +27,29 @@
     <div class="card">
       <span class="section-label">Telefonie</span>
       <h1>Telefon</h1>
-      <p><span class="status off">Telefonfunktion noch nicht aktiv</span></p>
-      <p class="muted">Ausgehende Anrufe laufen über Twilio mit Live-Transkript. Am schnellsten geht es über das Dashboard – dort Anweisung eingeben und „Anruf starten“ wählen.</p>
+      <p><span class="status off" id="call-status-badge">Status lädt …</span></p>
+      <p class="muted">Telefonie läuft über den bei ElevenLabs importierten Zadarma-SIP-Trunk. Der Status oben wird live vom Server geprüft; echte Anrufe starten erst nach ausdrücklicher Bestätigung.</p>
       <div class="row" style="max-width:420px">
         <a class="btn" href="/dashboard">Zum Dashboard</a>
       </div>
     </div>
   </main>
   <footer>Victor · KI-Telefonassistent</footer>
+  <script>
+    fetch('/api/telephony/status').then((r) => r.json()).then((t) => {
+      const b = document.getElementById('call-status-badge');
+      if (t.verified) {
+        b.textContent = 'Verifiziert' + (t.phoneNumber ? ' · ' + t.phoneNumber : '');
+        b.classList.remove('off');
+        b.classList.add('ok');
+      } else if (t.configured) {
+        b.textContent = 'Konfiguriert, nicht verifiziert' + (t.verificationError ? ' · ' + t.verificationError : '');
+      } else {
+        b.textContent = 'Nicht konfiguriert';
+      }
+    }).catch(() => {
+      document.getElementById('call-status-badge').textContent = 'Status nicht erreichbar';
+    });
+  </script>
 </body>
 </html>

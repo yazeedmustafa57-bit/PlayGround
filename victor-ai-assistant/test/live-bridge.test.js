@@ -1,6 +1,6 @@
 'use strict';
 
-// Tests: Audio-Codec + Live-Bridge (Twilio <-> ElevenLabs).
+// Tests: Audio-Codec + Live-Bridge (Telefonie-Gateway <-> ElevenLabs).
 // Nur lokale Module + Mocks. Kein Netz, keine Secrets, keine echten Calls.
 
 const { test, beforeEach, afterEach } = require('node:test');
@@ -12,9 +12,6 @@ const assert = require('node:assert/strict');
 // Laden läuft; die Hooks scrubben danach vor jedem einzelnen Test.
 require('../src/server.js');
 const SCRUB_VARS = [
-  'TWILIO_ACCOUNT_SID',
-  'TWILIO_AUTH_TOKEN',
-  'TWILIO_PHONE_NUMBER',
   'ELEVENLABS_API_KEY',
   'ELEVENLABS_AGENT_ID',
   'ELEVENLABS_VOICE_ID',
@@ -168,7 +165,7 @@ test('Bridge: ping -> pong, Transkripte an Callbacks', async () => {
   assert.equal(got.agent, 'Sehr gut');
 });
 
-test('Bridge: Agent-Audio (pcm16k) -> mulaw-base64 für Twilio', async () => {
+test('Bridge: Agent-Audio (pcm16k) -> mulaw-base64 für das Telefonie-Gateway', async () => {
   let out = null;
   const { bridge } = await connectedBridge({ onAgentAudio: (b64) => { out = b64; } });
   bridge.handleMessage(JSON.stringify({
@@ -186,7 +183,7 @@ test('Bridge: Agent-Audio (pcm16k) -> mulaw-base64 für Twilio', async () => {
   }));
   assert.ok(typeof out === 'string' && out.length > 0);
   assert.equal(Buffer.from(out, 'base64').length, 2);
-  assert.equal(bridge.state.audioToTwilio, 1);
+  assert.equal(bridge.state.audioToCaller, 1);
 });
 
 test('Bridge: sendUserAudio zählt + kodiert (ulaw-Passthrough möglich)', async () => {
@@ -196,7 +193,7 @@ test('Bridge: sendUserAudio zählt + kodiert (ulaw-Passthrough möglich)', async
   const sent = JSON.parse(mock.sent[mock.sent.length - 1]);
   assert.ok(sent.user_audio_chunk.length > 0);
   const sum = bridge.getSummary();
-  assert.equal(sum.audioReceivedFromTwilio, 1);
+  assert.equal(sum.audioReceivedFromCaller, 1);
   assert.equal(sum.audioForwardedToElevenLabs, 1);
   assert.equal(sum.audioRejected, 0);
   assert.ok(sum.firstInboundAudioAt);
@@ -211,7 +208,7 @@ test('Bridge: sendUserAudio ohne Verbindung wirft + zählt Rejected', async () =
   const b = createLiveBridge({ agentId: 'a', apiKey: 'k', wsFactory: () => null });
   assert.throws(() => b.sendUserAudio('abcd'), /not connected/i);
   const sum = b.getSummary();
-  assert.equal(sum.audioReceivedFromTwilio, 1);
+  assert.equal(sum.audioReceivedFromCaller, 1);
   assert.equal(sum.audioRejected, 1);
   assert.equal(sum.audioForwardedToElevenLabs, 0);
 });
@@ -231,7 +228,7 @@ test('Bridge: Summary-Einmaligkeit + Form (keine Secrets/Audio)', async () => {
     assert.doesNotMatch(summaryLines[0], /key_y/);
     const parsed = JSON.parse(summaryLines[0].replace('BRIDGE_SESSION_SUMMARY ', ''));
     assert.deepEqual(Object.keys(parsed).sort(), [
-      'audioForwardedToElevenLabs', 'audioReceivedFromTwilio', 'audioRejected', 'durationMs',
+      'audioForwardedToElevenLabs', 'audioReceivedFromCaller', 'audioRejected', 'durationMs',
       'elevenLabsCloseCode', 'elevenLabsErrors', 'elevenLabsOpened', 'firstAudioToAgentAt',
       'firstInboundAudioAt', 'lastAudioToAgentAt', 'lastInboundAudioAt',
     ].sort());

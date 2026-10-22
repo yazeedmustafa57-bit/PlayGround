@@ -31,7 +31,7 @@
         <h1>KI-Telefonassistent</h1>
         <p class="muted">Anweisung per Text geben – Victor ruft an und führt das Gespräch. Beispiel: „Rufe +491701234567 an und vereinbare einen Termin für Dienstag.“</p>
       </div>
-      <span class="badge sim">Simulation ohne Twilio-Credentials</span>
+      <span class="badge sim" id="telephony-badge">Telefonie-Status lädt …</span>
     </div>
     <div class="dash-grid">
       <section class="card" aria-label="Chat-Verlauf">
@@ -64,15 +64,15 @@
         <p class="muted small">API-Keys stehen nur in <code>.env</code> auf dem Server – nie im Browser, nie in Antworten.</p>
       </aside>
     </div>
-    <section class="card" aria-label="Live-Transkript">
-      <span class="section-label">Gespräch live verfolgen</span>
-      <h2>Live-Transkript</h2>
+    <section class="card" aria-label="Transkript">
+      <span class="section-label">Gesprächsverlauf</span>
+      <h2>Transkript</h2>
       <div class="row" style="max-width:560px">
         <select id="call-select" aria-label="Anruf wählen"><option value="">– Anruf wählen –</option></select>
         <button id="refresh-btn" class="btn secondary" type="button">Aktualisieren</button>
       </div>
       <div id="transcript" class="chat-box"></div>
-      <p class="muted small">Live-Updates über WebSocket <code>/dashboard-stream</code>, alternativ per „Aktualisieren“.</p>
+      <p class="muted small">Bei nativen SIP-Anrufen wird das Transkript nach dem Gespräch von ElevenLabs geladen („Aktualisieren“). Live-Updates über WebSocket <code>/dashboard-stream</code> gelten nur für den Media-Stream-Pfad.</p>
     </section>
   </main>
   <footer>Victor · KI-Telefonassistent</footer>

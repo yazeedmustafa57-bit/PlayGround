@@ -2,26 +2,32 @@
 
 // Victor KI-Telefonassistent – Express + WebSocket-Server.
 // - Statische Bestandsseiten + Dashboard
-// - Diagnose: /health, /api/elevenlabs/status, /api/twilio/status, /api/settings, /api/llm/status
+// - Diagnose: /health, /api/elevenlabs/status, /api/telephony/status, /api/settings, /api/llm/status
 // - Chat-Steuerung: POST /api/chat/instruct, POST /api/call/start, GET /api/calls, GET /api/call/:id/transcript
-// - Twilio-Voice-Webhooks: POST /voice/outgoing, POST /voice/incoming, POST /voice/status (TwiML)
-// - WebSockets: /media-stream (Twilio ulaw_8000), /dashboard-stream (Live-Transkript)
+// - Telefonie: ElevenLabs-SIP-Trunk (Zadarma-Nummer), nur nach Bestätigung
+// - WebSockets: /media-stream (provider-neutrales ulaw_8000-Framing), /dashboard-stream (Live-Transkript)
 // Alles ohne Secrets in Antworten/Logs. Ohne Credentials: simulierter Modus.
-
-try { require('dotenv').config(); } catch { /* dotenv optional */ }
 
 const http = require('node:http');
 const path = require('node:path');
+
+// Immer die Projekt-.env laden, unabhängig vom aktuellen Arbeitsverzeichnis.
+// Bereits gesetzte Prozess-Variablen haben Vorrang (dotenv überschreibt nicht).
+try {
+  require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+} catch { /* dotenv optional */ }
+
 const express = require('express');
 
 const { createInitialState, processUserMessage } = require('./call-controller');
 const { sanitizeState } = require('./personal-data-policy');
-const { getPublicStatus } = require('./elevenlabs-config');
-const { getTwilioPublicStatus } = require('./twilio-config');
+const { getElevenLabsStatus } = require('./elevenlabs-config');
+
 const { getPublicSettings, getAppConfig } = require('./app-config');
 const orchestrator = require('./outbound-orchestrator');
-const { buildOutboundTwiml } = require('./twilio-voice');
-const { parseStreamMessage, extractAudioPayload, buildMediaMessage } = require('./twilio-media');
+const telephony = require('./telephony-config');
+
+const { parseStreamMessage, extractAudioPayload, buildMediaMessage } = require('./media-stream');
 const { createSessionDiagnostics, shortSid } = require('./media-diagnostics');
 const { redactForLog } = require('./bridge');
 const { createLiveBridge } = require('./live-bridge');
@@ -91,18 +97,44 @@ function createApp() {
 
   // ---- Diagnose (Bestand, secret-frei) ----
   app.get('/health', (req, res) => res.json({ ok: true, service: 'victor-ai-assistant' }));
-  app.get('/api/elevenlabs/status', (req, res) => res.json(getPublicStatus()));
-  app.get('/api/twilio/status', (req, res) => res.json(getTwilioPublicStatus()));
+  app.get('/api/elevenlabs/status', async (req, res) => {
+    try {
+      res.json(await getElevenLabsStatus());
+    } catch {
+      res.status(500).json({ ok: false, error: 'elevenlabs status failed' });
+    }
+  });
+  app.get('/api/telephony/status', async (req, res) => {
+    try {
+      const status = await telephony.getTelephonyStatus();
+      res.json({ ok: true, ...status });
+    } catch {
+      res.status(500).json({ ok: false, error: 'telephony status failed' });
+    }
+  });
   app.get('/api/settings', (req, res) => res.json({ ok: true, settings: getPublicSettings() }));
   app.get('/api/llm/status', (req, res) => {
     // Kein externes LLM: Dialog = ElevenLabs Conversational AI Agent.
     res.json({ ok: true, configured: false, model: 'elevenlabs-agent', mode: 'elevenlabs-conversational-ai' });
   });
   app.get('/api/calls', (req, res) => res.json({ ok: true, calls: orchestrator.listSessions() }));
-  app.get('/api/call/:id/transcript', (req, res) => {
-    const s = orchestrator.getSession(req.params.id);
+  app.get('/api/call/:id/transcript', async (req, res) => {
+    let s = orchestrator.getSession(req.params.id);
     if (!s) return res.status(404).json({ ok: false, error: 'Unknown call id' });
-    return res.json({ ok: true, id: s.id, transcript: s.transcript });
+    // Native SIP-Anrufe: echtes Transkript nachladen (best-effort, gecacht).
+    try {
+      s = (await orchestrator.syncSessionTranscript(s.id)) || s;
+    } catch { /* Transkript bleibt lokal, kein Fake */ }
+    return res.json({
+      ok: true,
+      id: s.id,
+      status: s.status,
+      provider: s.provider,
+      error: s.error || null,
+      errorText: orchestrator.describeCallError(s.error),
+      transcript: s.transcript,
+      transcriptSyncError: s.transcriptSyncError || null,
+    });
   });
 
   // ---- Bestand: lokale Auftragserkennung ----
@@ -139,40 +171,36 @@ function createApp() {
     }
   });
 
-  // ---- Neu: Anruf starten (Schritt 3, Twilio oder Simulation) ----
+  // ---- Anruf-Session anlegen; echter Anruf nur nach Bestätigung ----
   app.post('/api/call/start', async (req, res) => {
     try {
-      const { instruction, to, contactName, goal } = req.body || {};
+      const { instruction, to, contactName, goal, confirm } = req.body || {};
       const text = String(instruction || goal || '');
       if (!text.trim() && !to) return res.status(400).json({ ok: false, error: 'Missing instruction or to' });
-      const session = await orchestrator.startCall({ instruction: text, to, contactName, goal });
-      res.json({ ok: true, call: session });
+      const session = await orchestrator.startCall({
+        instruction: text,
+        to,
+        contactName,
+        goal,
+        confirm: confirm === true,
+      });
+      res.json({
+        ok: true,
+        confirmationRequired: session.status === 'confirmation-required',
+        call: session,
+      });
     } catch (err) {
       if (err && (err.code === 'MISSING_TO' || err.code === 'INVALID_TO')) {
         return res.status(400).json({ ok: false, error: String(err.message) });
       }
-      // Twilio-Fehler mit Code + Meldung weitergeben (keine Secrets),
+      // Fehler mit Code + Meldung weitergeben (keine Secrets),
       // damit das Dashboard die echte Ursache zeigt statt nur „failed“.
       const detail = err && err.code && err.code !== 500
-        ? ` (Code ${err.code}: ${err.message || 'Twilio-Fehler'})`
+        ? ` (Code ${err.code}: ${err.message || 'Telefonie-Fehler'})`
         : '';
       res.status(500).json({ ok: false, error: `call start failed${detail}` });
     }
   });
-
-  // ---- Twilio Voice-Webhooks (TwiML, ohne Say: Agent begrüßt selbst) ----
-  const twiml = (xml, res) => res.type('text/xml').send(xml);
-  app.post('/voice/outgoing', (req, res) => {
-    const appCfg = getAppConfig();
-    const xml = buildOutboundTwiml({ publicBaseUrl: appCfg.publicBaseUrl });
-    twiml(xml, res);
-  });
-  app.post('/voice/incoming', (req, res) => {
-    const appCfg = getAppConfig();
-    const xml = buildOutboundTwiml({ publicBaseUrl: appCfg.publicBaseUrl });
-    twiml(xml, res);
-  });
-  app.post('/voice/status', (req, res) => res.json({ ok: true }));
 
   // ---- Bestandsseiten (saubere URLs) ----
   const pages = {
@@ -191,7 +219,7 @@ function createApp() {
 
   // ---- 404 + Fehler ----
   // GET-only-Routen mit falscher Methode -> 405 (Bestandskompatibilität).
-  const GET_ONLY = new Set(['/health', '/api/elevenlabs/status', '/api/twilio/status', '/api/settings', '/api/llm/status', '/api/calls']);
+  const GET_ONLY = new Set(['/health', '/api/elevenlabs/status', '/api/telephony/status', '/api/settings', '/api/llm/status', '/api/calls']);
   app.use((req, res, next) => {
     const p = req.path;
     if ((GET_ONLY.has(p) || /^\/api\/call\/[^/]+\/transcript$/.test(p)) && req.method !== 'GET') {
@@ -238,7 +266,7 @@ function attachWebSockets(server) {
       try { ws.send(JSON.stringify({ type: 'hello', calls: orchestrator.listSessions() })); } catch { /* ignore */ }
       return;
     }
-    // /media-stream: Twilio (mulaw_8000) <-> ElevenLabs-Agent (live).
+    // /media-stream: provider-neutrales Telefonie-Audio (mulaw_8000) <-> ElevenLabs-Agent (live).
     // Der Agent spricht (Helmut) und antwortet; Transkripte gehen live
     // ins Dashboard. Kein Netz ohne Credentials: dann Stille statt Fake-Audio.
     let streamSid = null;
@@ -257,17 +285,17 @@ function attachWebSockets(server) {
       return String(typeof redacted === 'string' ? redacted : raw).slice(0, 200);
     }
 
-    function sendToTwilio(mulawB64) {
+    function sendToCaller(mulawB64) {
       if (!streamSid) return;
       try {
         ws.send(JSON.stringify(buildMediaMessage(streamSid, mulawB64)));
       } catch { /* ignore */ }
     }
 
-    async function startAgent(twilioCallSid, attempt) {
+    async function startAgent(callRef, attempt) {
       attempt = Number.isSafeInteger(attempt) && attempt > 0 ? attempt : 1;
       agentAttempts = Math.max(agentAttempts, attempt);
-      session = orchestrator.findSessionByTwilioSid(twilioCallSid) || null;
+      session = orchestrator.findSessionByCallRef(callRef) || null;
       const appCfg = getAppConfig();
       const elCfg = getElevenLabsConfig();
       // Sichtbarer Startpunkt: Session-Bindung + Config-Booleans (nie Secrets).
@@ -295,7 +323,7 @@ function attachWebSockets(server) {
           firstMessage: buildDynamicFirstGreeting(ctx),
           dynamicVariables: vars,
           briefing: buildCallBriefing(state),
-          onAgentAudio: sendToTwilio,
+          onAgentAudio: sendToCaller,
           onUserTranscript: (t) => { if (session) orchestrator.appendTranscript(session, 'caller', t); },
           onAgentResponse: (r) => { if (session) orchestrator.appendTranscript(session, 'victor', r); },
           onEvent: (ev) => {
@@ -322,7 +350,7 @@ function attachWebSockets(server) {
         if (attempt < 2 && !sessionEnded && !live && !bridgeReady) {
           setTimeout(() => {
             if (!sessionEnded && !live && !bridgeReady) {
-              startAgent(twilioCallSid, attempt + 1).catch(() => { /* bereits geloggt */ });
+              startAgent(callRef, attempt + 1).catch(() => { /* bereits geloggt */ });
             }
           }, 2000);
         }
@@ -351,7 +379,7 @@ function attachWebSockets(server) {
             channels: mediaFormat.channels,
           },
           tracks: msg.start && msg.start.tracks !== undefined ? msg.start.tracks : null,
-          hasSession: Boolean(orchestrator.findSessionByTwilioSid(callSid)),
+          hasSession: Boolean(orchestrator.findSessionByCallRef(callSid)),
         });
         await startAgent(callSid);
         return;
@@ -409,12 +437,12 @@ function attachWebSockets(server) {
     ws.on('close', (code, reason) => {
       sessionEnded = true; // Retry-Fenster schließen (Diagnose only).
       try { if (live) live.end(); } catch { /* ignore */ }
-      diag.onTwilioClose({ code, reason: typeof reason === 'string' ? reason : (reason ? String(reason) : null), source: 'twilio-close' });
+      diag.onChannelClose({ code, reason: typeof reason === 'string' ? reason : (reason ? String(reason) : null), source: 'channel-close' });
     });
     ws.on('error', (err) => {
       sessionEnded = true; // Retry-Fenster schließen (Diagnose only).
       try { if (live) live.end(); } catch { /* ignore */ }
-      diag.onTwilioError((err && err.message) || String(err));
+      diag.onChannelError((err && err.message) || String(err));
     });
   });
   return wss;

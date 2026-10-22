@@ -1,12 +1,12 @@
 'use strict';
 
-// Tests: Diagnose-Schicht für den Twilio→live-bridge Audio-Uplink.
+// Tests: Diagnose-Schicht für den Media-Stream→live-bridge Audio-Uplink.
 // Keine echten Anrufe, keine echten WS-Verbindungen, nur lokale Module + Mocks.
 
 const { test, beforeEach, afterEach } = require('node:test');
 const assert = require('node:assert/strict');
 
-const { parseStreamMessage, extractAudioPayload } = require('../src/twilio-media');
+const { parseStreamMessage, extractAudioPayload } = require('../src/media-stream');
 const { createSessionDiagnostics, shortSid } = require('../src/media-diagnostics');
 
 let logs = [];
@@ -28,7 +28,7 @@ function summaryLines() {
   return logs.filter((l) => l.startsWith('MEDIA_SESSION_SUMMARY'));
 }
 
-// ---- twilio-media: Reasons bei identischem Verhalten ----
+// ---- media-stream: Reasons bei identischem Verhalten ----
 test('Parser-Reasons: invalid-json / unknown-event', () => {
   assert.throws(() => parseStreamMessage('kein-json{{{'), (e) => e.code === 'INVALID_JSON' && e.reason === 'invalid-json');
   assert.throws(() => parseStreamMessage('{"event":"fax"}'), (e) => e.code === 'UNKNOWN_EVENT' && e.reason === 'unknown-event');
@@ -168,19 +168,19 @@ test('Summary: einmalig, exakte Felder, kein Payload/Telefon/Secret', () => {
 });
 
 // ---- WS close/error ----
-test('Tracker: twilio close/error mit Code und Summary', () => {
+test('Tracker: channel close/error mit Code und Summary', () => {
   const t = createSessionDiagnostics();
   t.onMedia({ payloadLength: 10 });
-  t.onTwilioClose({ code: 1005, reason: 'gone', source: 'twilio-close' });
+  t.onChannelClose({ code: 1005, reason: 'gone', source: 'channel-close' });
   assert.equal(summaryLines().length, 1);
   const parsed = JSON.parse(summaryLines()[0].replace('MEDIA_SESSION_SUMMARY ', ''));
   assert.equal(parsed.mediaReceived, 1);
-  assert.equal(parsed.endedBy, 'twilio-close');
-  t.onTwilioClose({ code: 1006, reason: 'x', source: 'twilio-close' });
+  assert.equal(parsed.endedBy, 'channel-close');
+  t.onChannelClose({ code: 1006, reason: 'x', source: 'channel-close' });
   assert.equal(summaryLines().length, 1); // nur einmal
 
   const t2 = createSessionDiagnostics();
-  t2.onTwilioError('socket hang up');
+  t2.onChannelError('socket hang up');
   assert.equal(summaryLines().length, 2);
 });
 
@@ -192,9 +192,9 @@ test('shortSid kürzt lange IDs, lässt kurze/fehlende in Ruhe', () => {
   assert.equal(shortSid(''), null);
 });
 
-// ---- Ende-zu-Ende: simulierter Twilio-Client gegen echten Server (ohne Netz) ----
-const FAKE_CALL_SID = 'CAaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
-const FAKE_STREAM_SID = 'MZbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+// ---- Ende-zu-Ende: simulierter Media-Client gegen echten Server (ohne Netz) ----
+const FAKE_CALL_SID = 'callref-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+const FAKE_STREAM_SID = 'stream-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
 
 function scrubElevenLabsEnv() {
   const saved = {};
@@ -234,12 +234,11 @@ function wsClient(port) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-function twilioStart() {
+function mediaStart() {
   return JSON.stringify({
     event: 'start',
     streamSid: FAKE_STREAM_SID,
     start: {
-      accountSid: 'ACtest000000000000000000000001',
       callSid: FAKE_CALL_SID,
       tracks: ['inbound'],
       mediaFormat: { encoding: 'audio/x-mulaw', sampleRate: 8000, channels: 1 },
@@ -247,7 +246,7 @@ function twilioStart() {
   });
 }
 
-function twilioMedia(chunk) {
+function mediaChunk(chunk) {
   return JSON.stringify({
     event: 'media',
     streamSid: FAKE_STREAM_SID,
@@ -261,11 +260,11 @@ test('E2E: Start ohne Creds -> sichtbarer Fehler, Media gezählt+verworfen, Summ
   try {
     const port = server.address().port;
     const ws = await wsClient(port);
-    ws.send(twilioStart());
+    ws.send(mediaStart());
     await sleep(250);
-    ws.send(twilioMedia(1));
-    ws.send(twilioMedia(2));
-    ws.send(twilioMedia(3));
+    ws.send(mediaChunk(1));
+    ws.send(mediaChunk(2));
+    ws.send(mediaChunk(3));
     await sleep(250);
     ws.send(JSON.stringify({ event: 'stop', streamSid: FAKE_STREAM_SID }));
     await sleep(250);
@@ -286,8 +285,8 @@ test('E2E: Start ohne Creds -> sichtbarer Fehler, Media gezählt+verworfen, Summ
     assert.equal(s.endedBy, 'stop');
     assert.ok(s.firstMediaAt && s.lastMediaAt);
     // Keine vollständigen IDs, keine Secrets:
-    assert.doesNotMatch(dump, /CAaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/);
-    assert.doesNotMatch(dump, /MZbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/);
+    assert.doesNotMatch(dump, /callref-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/);
+    assert.doesNotMatch(dump, /stream-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/);
     assert.doesNotMatch(dump, /sk-/);
   } finally {
     await new Promise((r) => server.close(r));
@@ -301,7 +300,7 @@ test('E2E: genau EIN Retry nach Fehlschlag, dann Ruhe', async () => {
   try {
     const port = server.address().port;
     const ws = await wsClient(port);
-    ws.send(twilioStart());
+    ws.send(mediaStart());
     await sleep(2600); // Retry-Fenster (2s) abwarten
     const starts = logs.filter((l) => l.includes('agent-start'));
     assert.equal(starts.length, 2, 'genau 2 Versuche (initial + 1 Retry)');

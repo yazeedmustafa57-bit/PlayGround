@@ -11,7 +11,7 @@ let savedEnv = {};
 
 beforeEach(() => {
   savedEnv = { ...process.env };
-  for (const k of ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_PHONE_NUMBER', 'ELEVENLABS_API_KEY', 'ELEVENLABS_AGENT_ID', 'ELEVENLABS_VOICE_ID']) {
+  for (const k of ['ELEVENLABS_API_KEY', 'ELEVENLABS_AGENT_ID', 'ELEVENLABS_PHONE_NUMBER_ID', 'ELEVENLABS_BASE_URL', 'ELEVENLABS_VOICE_ID']) {
     delete process.env[k];
   }
   const orch = require('../src/outbound-orchestrator');
@@ -19,7 +19,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  for (const k of ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_PHONE_NUMBER', 'ELEVENLABS_API_KEY', 'ELEVENLABS_AGENT_ID', 'ELEVENLABS_VOICE_ID']) {
+  for (const k of ['ELEVENLABS_API_KEY', 'ELEVENLABS_AGENT_ID', 'ELEVENLABS_PHONE_NUMBER_ID', 'ELEVENLABS_BASE_URL', 'ELEVENLABS_VOICE_ID']) {
     if (savedEnv[k] === undefined) delete process.env[k];
     else process.env[k] = savedEnv[k];
   }
@@ -88,29 +88,9 @@ test('ElevenLabs STT ohne Key: sauberer Fehler, kein Netz', () => {
   assert.throws(() => s.connect(), (e) => e.code === 'STT_NOT_CONFIGURED');
 });
 
-// ---- twilio-voice.js ----
-test('TwiML: KEIN Say (nur Helmut spricht), Stream zum Backend', () => {
-  const { buildOutboundTwiml, buildIntroSayText } = require('../src/twilio-voice');
-  const intro = buildIntroSayText({ agentName: 'Victor' });
-  assert.match(intro, /KI-Assistent/);
-  const xml = buildOutboundTwiml({ publicBaseUrl: 'https://example.invalid' });
-  assert.doesNotMatch(xml, /<Say/);
-  assert.match(xml, /<Response>/);
-  assert.match(xml, /<Connect>/);
-  // Connect+Stream: KEIN track-Attribut (Twilio 31941 erlaubt hier nur Default).
-  assert.doesNotMatch(xml, /track=/);
-  assert.match(xml, /wss:\/\/example\.invalid\/media-stream/);
-});
-
-test('Ausgehender Anruf ohne Credentials: simuliert, kein Netz', async () => {
-  const { startOutboundCall } = require('../src/twilio-voice');
-  const r = await startOutboundCall({ to: '+491701234567' });
-  assert.equal(r.simulated, true);
-  assert.equal(r.ok, true);
-});
-
+// ---- phone-number.js ----
 test('toE164: 0176… → +49…, 0049… → +49…, Müll → null', () => {
-  const { toE164 } = require('../src/twilio-voice');
+  const { toE164 } = require('../src/phone-number');
   assert.equal(toE164('017680282611'), '+4917680282611');
   assert.equal(toE164('0176 80282611'), '+4917680282611');
   assert.equal(toE164('004917680282611'), '+4917680282611');
@@ -120,16 +100,9 @@ test('toE164: 0176… → +49…, 0049… → +49…, Müll → null', () => {
   assert.equal(toE164(null), null);
 });
 
-test('startOutboundCall wandelt nationale Nummer um (simuliert)', async () => {
-  const { startOutboundCall } = require('../src/twilio-voice');
-  const r = await startOutboundCall({ to: '017680282611' });
-  assert.equal(r.ok, true);
-  assert.equal(r.to, '+4917680282611');
-});
-
-test('startOutboundCall mit Müll-Nummer: Fehler INVALID_TO', async () => {
-  const { startOutboundCall } = require('../src/twilio-voice');
-  await assert.rejects(() => startOutboundCall({ to: 'keine-nummer' }), (e) => e.code === 'INVALID_TO');
+test('startCall mit Müll-Nummer: Fehler INVALID_TO', async () => {
+  const orch = require('../src/outbound-orchestrator');
+  await assert.rejects(() => orch.startCall({ instruction: 'Test', to: 'keine-nummer' }), (e) => e.code === 'INVALID_TO');
 });
 
 // ---- orchestrator ----
@@ -149,6 +122,7 @@ test('Orchestrator Pipeline: Antwort vom ElevenLabs-Agent (Mock) + Transkript', 
   const orch = require('../src/outbound-orchestrator');
   const s = await orch.startCall({ instruction: 'Test', to: '+491701234567' });
   assert.equal(s.simulated, true);
+  assert.equal(s.status, 'telephony-unavailable');
   const sent = [];
   const { reply } = await orch.handleCallerUtterance(s.id, 'Ja, Dienstag passt.', {
     agentReply: async () => 'Sehr gut. Dienstag ist notiert.',
@@ -216,11 +190,29 @@ test('API: /api/call/start simuliert + Transkript abrufbar', async () => {
     assert.equal(r.status, 200);
     const call = JSON.parse(r.body).call;
     assert.equal(call.simulated, true);
+    assert.equal(call.status, 'telephony-unavailable');
     const t = await getJSON(port, `/api/call/${call.id}/transcript`);
     assert.equal(t.status, 200);
     assert.ok(JSON.parse(t.body).transcript.length >= 1);
     const list = await getJSON(port, '/api/calls');
     assert.equal(JSON.parse(list.body).calls.length, 1);
+  } finally { await new Promise((r) => server.close(r)); }
+});
+
+test('API: Kontakt, Kalender (Datum/Zeit) und Auftrag werden lokal erkannt', async () => {
+  const server = await startServer();
+  try {
+    const r = await postJSON(server.address().port, '/api/test/message', {
+      text: 'Vereinbare einen Termin mit Jacko morgen um 15 Uhr.',
+    });
+    assert.equal(r.status, 200);
+    const j = JSON.parse(r.body);
+    assert.equal(j.ok, true);
+    assert.equal(j.purpose, 'Termin vereinbaren');
+    assert.equal(j.contactName, 'Jacko');
+    assert.match(j.requestedDate || '', /morgen/i);
+    assert.match(j.requestedTime || '', /15 Uhr/);
+    assert.doesNotMatch(r.body, /sk-|AUTH_TOKEN/);
   } finally { await new Promise((r) => server.close(r)); }
 });
 
@@ -234,26 +226,11 @@ test('API: /api/settings + /api/llm/status ohne Secrets', async () => {
     const settings = JSON.parse(s.body).settings;
     assert.equal(settings.elevenlabs.keyConfigured, false);
     assert.equal(settings.elevenlabs.agentConfigured, false);
+    assert.equal(settings.telephony.configured, false);
+    assert.equal(settings.telephony.provider, null);
     const l = await getJSON(port, '/api/llm/status');
     assert.equal(JSON.parse(l.body).model, 'elevenlabs-agent');
   } finally { await new Promise((r) => server.close(r)); }
-});
-
-test('API: /voice/outgoing liefert TwiML ohne Say (Agent begrüßt)', async () => {
-  const savedBaseUrl = process.env.PUBLIC_BASE_URL;
-  process.env.PUBLIC_BASE_URL = 'https://example.invalid';
-  const server = await startServer();
-  try {
-    const r = await postJSON(server.address().port, '/voice/outgoing', {});
-    assert.equal(r.status, 200);
-    assert.doesNotMatch(r.body, /<Say/);
-    assert.match(r.body, /<Response>/);
-    assert.match(r.body, /<Stream/);
-  } finally {
-    if (savedBaseUrl === undefined) delete process.env.PUBLIC_BASE_URL;
-    else process.env.PUBLIC_BASE_URL = savedBaseUrl;
-    await new Promise((r) => server.close(r));
-  }
 });
 
 test('API: /dashboard erreichbar', async () => {

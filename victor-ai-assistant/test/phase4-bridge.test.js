@@ -1,7 +1,7 @@
 'use strict';
 
 // Phase 4 – Bridge-Tests, nur Node-Bordmittel, Mock-WebSocket (Dependency Injection).
-// KEIN echter ElevenLabs-Aufruf, KEIN Twilio, KEINE Secrets.
+// KEIN echter ElevenLabs-Aufruf, keine Telefonie, KEINE Secrets.
 
 const { test, beforeEach, afterEach } = require('node:test');
 const assert = require('node:assert/strict');

@@ -303,8 +303,10 @@ textarea { resize: vertical; min-height: 110px; }
   color: var(--muted);
 }
 
-.badge.live { background: var(--success-bg); border-color: var(--success-border); color: var(--success-text); }
+.badge.live,
+.badge.ok { background: var(--success-bg); border-color: var(--success-border); color: var(--success-text); }
 .badge.sim { background: var(--warn-bg); border-color: var(--warn-border); color: var(--warn-text); }
+.badge.off { background: #eef1f6; border-color: var(--border); color: var(--muted); }
 
 /* ---------- Chat ---------- */
 

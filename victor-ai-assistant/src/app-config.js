@@ -10,6 +10,7 @@ function readEnv(name, fallback) {
 }
 
 function getAppConfig() {
+  const telephony = require('./telephony-config');
   return {
     port: Number.parseInt(process.env.PORT || '5051', 10) || 5051,
     publicBaseUrl: readEnv('PUBLIC_BASE_URL', ''),
@@ -18,7 +19,8 @@ function getAppConfig() {
     // Kein externes LLM: Dialoglogik = ElevenLabs Conversational AI Agent.
     llmModel: 'elevenlabs-agent',
     llmConfigured: false,
-    audioFormat: 'ulaw_8000', // Twilio-Pflichtformat: 8 kHz mono ulaw
+    audioFormat: 'ulaw_8000', // klassisches Telefonie-Format: 8 kHz mono ulaw
+    telephony: telephony.getTelephonySummary(),
   };
 }
 
@@ -26,7 +28,6 @@ function getAppConfig() {
 function getPublicSettings() {
   const cfg = getAppConfig();
   const eleven = require('./elevenlabs-config');
-  const twilio = require('./twilio-config');
   const voice = eleven.getVoiceSettings();
   return {
     agentName: cfg.agentName,
@@ -41,7 +42,11 @@ function getPublicSettings() {
       sttModel: voice.sttModel,
       ttsModel: voice.ttsModel,
     },
-    twilio: twilio.getTwilioPublicStatus(),
+    telephony: {
+      provider: cfg.telephony.provider,
+      configured: cfg.telephony.configured,
+      mode: cfg.telephony.mode,
+    },
     // Öffentliche Erreichbarkeit (Tunnel-URL, kein Secret – nur Hostname).
     cloudflare: {
       connected: cfg.publicBaseUrl.length > 0,

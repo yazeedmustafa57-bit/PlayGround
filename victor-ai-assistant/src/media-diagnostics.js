@@ -1,6 +1,6 @@
 'use strict';
 
-// Diagnose-Helfer für den Twilio→live-bridge Audio-Uplink.
+// Diagnose-Helfer für den Media-Stream→live-bridge Audio-Uplink.
 // Reine Zählung + Logging, KEINE Call-Logik, KEINE Audioinhalte,
 // KEINE Secrets, KEINE Telefonnummern (SIDs nur gekürzt).
 
@@ -28,7 +28,7 @@ function createSessionDiagnostics() {
     elevenLabsOpened: false,
     elevenLabsErrors: 0,
     elevenLabsCloseCode: null,
-    twilioCloseCode: null,
+    channelCloseCode: null,
     ended: false,
   };
 
@@ -106,19 +106,19 @@ function createSessionDiagnostics() {
       }
     },
 
-    onTwilioClose({ code, reason, source }) {
-      d.twilioCloseCode = code === undefined ? null : code;
-      logLine('twilio-close', {
+    onChannelClose({ code, reason, source }) {
+      d.channelCloseCode = code === undefined ? null : code;
+      logLine('channel-close', {
         source: source || null,
-        code: d.twilioCloseCode,
+        code: d.channelCloseCode,
         reason: typeof reason === 'string' ? reason.slice(0, 120) : null,
       });
-      tracker.summarize('twilio-close');
+      tracker.summarize('channel-close');
     },
 
-    onTwilioError(message) {
-      logLine('twilio-error', { message: String(message || 'unknown').slice(0, 160) });
-      tracker.summarize('twilio-error');
+    onChannelError(message) {
+      logLine('channel-error', { message: String(message || 'unknown').slice(0, 160) });
+      tracker.summarize('channel-error');
     },
 
     // Bridge-Aufbau pro Session: nur Booleans + gekürzte IDs, nie Secrets.

@@ -33,7 +33,7 @@ function buildCallSystemPrompt({ agentName, goal, contactName }) {
     'Stelle dich zu Beginn kurz als KI-Assistent vor.',
     contactName ? `Gesprächspartner: ${contactName}.` : 'Gesprächspartner: unbekannt.',
     `Gesprächsziel: ${goal || 'Anliegen sachlich klären'}.`,
-    'Regeln: keine erfundenen Infos, keine technischen Details über Twilio/ElevenLabs, höflich und kurz (max. 2 Sätze pro Antwort).',
+    'Regeln: keine erfundenen Infos, keine technischen Details über die Telefonie- oder KI-Technik, höflich und kurz (max. 2 Sätze pro Antwort).',
   ].join('\n');
 }
 

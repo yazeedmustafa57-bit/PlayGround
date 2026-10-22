@@ -1,6 +1,6 @@
 'use strict';
 
-// Audio-Codec: mulaw (Twilio, 8 kHz) <-> PCM16 (ElevenLabs).
+// Audio-Codec: mulaw (Telefonie, 8 kHz) <-> PCM16 (ElevenLabs).
 // Reine Mathematik, keine Dependencies, deterministisch testbar.
 //
 // mulaw <-> linear: Standard G.711 (Bias 0x84, Clip 32635).
@@ -44,7 +44,7 @@ function pcm16ToMulawBuffer(samples) {
   return out;
 }
 
-// Base64-Helfer (Twilio schickt/empfängt base64).
+// Base64-Helfer für Telefonie-Audio.
 function mulawBase64ToPcm16(b64) {
   return mulawBufferToPcm16(Buffer.from(String(b64 || ''), 'base64'));
 }

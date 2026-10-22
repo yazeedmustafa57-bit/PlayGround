@@ -30,48 +30,64 @@
       <p class="muted">Live-Verbindungsstatus aller Dienste (wird direkt vom Server abgefragt). Zugangsdaten stehen ausschließlich in der <code>.env</code>-Datei auf dem Server – hier werden niemals Secrets angezeigt.</p>
       <ul class="list">
         <li><span>ElevenLabs (Sprache)</span><span class="status off" id="el-status">prüft …</span></li>
-        <li><span>Twilio (Telefonie)</span><span class="status off" id="tw-status">prüft …</span></li>
-        <li><span>Cloudflare (Zugang)</span><span class="status off" id="cf-status">prüft …</span></li>
+        <li><span>Telefonie (Zadarma/SIP)</span><span class="status off" id="tw-status">prüft …</span></li>
+        <li><span>Öffentliche Basis-URL</span><span class="status off" id="cf-status">prüft …</span></li>
       </ul>
       <p class="muted small" id="setup-hint"></p>
     </div>
   </main>
   <footer>Victor · KI-Telefonassistent</footer>
   <script>
-    function setBadge(id, ok, onText) {
+    function setBadge(id, state, text) {
       const b = document.getElementById(id);
-      b.textContent = ok ? onText : 'Noch nicht verbunden';
-      b.classList.toggle('ok', ok);
-      b.classList.toggle('off', !ok);
+      b.textContent = text;
+      b.classList.remove('ok', 'off');
+      b.classList.add(state === 'ok' ? 'ok' : 'off');
     }
-    fetch('/api/settings').then((r) => r.json()).then((d) => {
-      const s = (d && d.settings) || {};
-      const el = (s.elevenlabs) || {};
-      const hint = document.getElementById('setup-hint');
+
+    Promise.allSettled([
+      fetch('/api/settings').then((r) => r.json()),
+      fetch('/api/elevenlabs/status').then((r) => r.json()),
+      fetch('/api/telephony/status').then((r) => r.json()),
+    ]).then(([settingsResult, elevenResult, telephonyResult]) => {
+      const settings = settingsResult.status === 'fulfilled' ? ((settingsResult.value && settingsResult.value.settings) || {}) : {};
+      const eleven = elevenResult.status === 'fulfilled' ? (elevenResult.value || {}) : {};
+      const telephony = telephonyResult.status === 'fulfilled' ? (telephonyResult.value || {}) : {};
       const hints = [];
-      if (el.agentConfigured) {
-        setBadge('el-status', true, 'Verbunden');
-      } else if (el.keyConfigured) {
-        // Key + Stimme OK (live getestet), nur die Agent-ID fehlt noch.
-        const b = document.getElementById('el-status');
-        b.textContent = el.voiceConfigured
-          ? 'Stimme bereit – Agent fehlt'
-          : 'Key OK – Stimme + Agent fehlen';
-        b.classList.remove('off');
-        hints.push('ElevenLabs: API-Key und Stimme sind geprüft – es fehlt nur noch die Agent-ID für den Conversational AI Agent.');
+
+      if (eleven.verified) {
+        setBadge('el-status', 'ok', 'Verifiziert' + (eleven.agentName ? ' · ' + eleven.agentName : ''));
+      } else if (eleven.configured) {
+        setBadge('el-status', 'off', 'Konfiguriert, nicht verifiziert' + (eleven.verificationError ? ' · ' + eleven.verificationError : ''));
+        hints.push('ElevenLabs ist konfiguriert, aber die Live-Prüfung ist fehlgeschlagen.');
       } else {
-        setBadge('el-status', false);
+        setBadge('el-status', 'off', 'Nicht konfiguriert');
+        hints.push('ElevenLabs: API-Key und Agent-ID in der .env-Datei setzen.');
       }
-      setBadge('tw-status', !!(s.twilio && s.twilio.configured), 'Verbunden');
-      setBadge('cf-status', !!(s.cloudflare && s.cloudflare.connected), 'Erreichbar');
-      if (s.twilio && s.twilio.configured) {
-        hints.push('Twilio ist verbunden – ausgehende Anrufe sind über das Dashboard möglich.');
+
+      if (telephony.verified) {
+        setBadge('tw-status', 'ok', 'Verifiziert' + (telephony.phoneNumber ? ' · ' + telephony.phoneNumber : ''));
+      } else if (telephony.configured) {
+        setBadge('tw-status', 'off', 'Konfiguriert, nicht verifiziert' + (telephony.verificationError ? ' · ' + telephony.verificationError : ''));
+        hints.push('Telefonie ist konfiguriert, aber Nummer/Trunk konnten nicht verifiziert werden.');
+      } else {
+        setBadge('tw-status', 'off', 'Nicht konfiguriert');
+        hints.push('Telefonie: ElevenLabs-API-Key und Agent-ID in der .env-Datei setzen.');
       }
+
+      if (settings.cloudflare && settings.cloudflare.connected) {
+        setBadge('cf-status', 'ok', 'Basis-URL gesetzt');
+        hints.push('PUBLIC_BASE_URL ist gesetzt (keine Erreichbarkeitsprüfung).');
+      } else {
+        setBadge('cf-status', 'off', 'Nicht gesetzt');
+      }
+
+      const hint = document.getElementById('setup-hint');
       hint.textContent = hints.join(' ');
     }).catch(() => {
-      setBadge('el-status', false);
-      setBadge('tw-status', false);
-      setBadge('cf-status', false);
+      setBadge('el-status', 'off', 'Status nicht erreichbar');
+      setBadge('tw-status', 'off', 'Status nicht erreichbar');
+      setBadge('cf-status', 'off', 'Status nicht erreichbar');
     });
   </script>
 </body>

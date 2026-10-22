@@ -27,12 +27,18 @@
     <div class="card">
       <span class="section-label">Verlauf</span>
       <h1>Journal</h1>
-      <p class="muted">Hier findest du bald alle Gespräche und Aktivitäten von Victor im Überblick – chronologisch und durchsuchbar.</p>
-      <ul class="list">
-        <li><span>Keine Einträge vorhanden</span><span class="muted">Bereit, sobald das erste Gespräch stattfindet</span></li>
+      <p class="muted">Alle Anruf-Sessions dieser Server-Laufzeit im Überblick. Die Daten liegen nur im Arbeitsspeicher und werden beim Neustart zurückgesetzt.</p>
+      <div class="row" style="max-width:420px">
+        <button id="journal-refresh" class="btn secondary" type="button">Aktualisieren</button>
+      </div>
+      <ul class="list" id="journal-list">
+        <li><span>Lädt …</span><span class="muted">Anrufe werden abgefragt</span></li>
       </ul>
+      <div id="journal-empty" class="muted small" hidden>Keine Anrufe vorhanden.</div>
+      <div id="journal-transcript" class="chat-box" aria-live="polite"></div>
     </div>
   </main>
   <footer>Victor · KI-Telefonassistent</footer>
+  <script src="/journal.js"></script>
 </body>
 </html>

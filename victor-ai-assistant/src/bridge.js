@@ -19,7 +19,7 @@
 //         { audio_event: { audio_base_64, event_id } }, user_transcript,
 //         agent_response, interruption, ...
 //   Die Bridge ersetzt NICHT den Agent-Systemprompt (nur per-call first_message
-//   + user_message-Briefing). Twilio folgt in späterer Phase (kein Twilio-Code hier).
+//   + user_message-Briefing). Telefonie folgt über ein separates Gateway.
 //   Keine echten Verbindungen in Tests (WebSocket per Dependency Injection / Mock).
 
 const { buildDynamicFirstGreeting } = require('./call-greeting');

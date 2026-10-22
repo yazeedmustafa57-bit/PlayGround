@@ -1,6 +1,6 @@
 'use strict';
 
-// Dashboard: links Chat, mitte Prompt+Call, rechts Settings, unten Live-Transkript.
+// Dashboard: links Chat, mitte Prompt+Call, rechts Settings, unten Transkript.
 // Nur same-origin fetch + WS /dashboard-stream. Keine Keys im Browser.
 
 (function () {
@@ -38,22 +38,60 @@
     return data;
   }
 
+  function setTelephonyBadge(t) {
+    const badge = $('telephony-badge');
+    if (!badge) return;
+    badge.classList.remove('ok', 'off', 'sim');
+    if (!t || !t.configured) {
+      badge.textContent = 'Telefonie nicht eingerichtet';
+      badge.classList.add('sim');
+    } else if (t.verified) {
+      badge.textContent = `SIP-Trunk verifiziert${t.phoneNumber ? ' · ' + t.phoneNumber : ''}`;
+      badge.classList.add('ok');
+    } else {
+      badge.textContent = `Telefonie konfiguriert, nicht verifiziert${t.verificationError ? ' (' + t.verificationError + ')' : ''}`;
+      badge.classList.add('off');
+    }
+  }
+
   async function loadSettings() {
     const box = $('settings');
     try {
-      const res = await fetch('/api/settings');
-      const data = await res.json();
-      const s = data.settings || {};
+      const [settingsRes, telephonyRes, elevenRes] = await Promise.all([
+        fetch('/api/settings'),
+        fetch('/api/telephony/status'),
+        fetch('/api/elevenlabs/status'),
+      ]);
+      const settings = (await settingsRes.json()).settings || {};
+      const t = await telephonyRes.json().catch(() => ({}));
+      const e = await elevenRes.json().catch(() => ({}));
+      setTelephonyBadge(t);
+
+      const telephonyState = !t.configured
+        ? 'nicht eingerichtet'
+        : (t.verified ? `verifiziert${t.phoneNumber ? ' · ' + t.phoneNumber : ''}` : `nicht verifiziert${t.verificationError ? ' · ' + t.verificationError : ''}`);
+      const elevenState = !e.configured
+        ? 'nicht eingerichtet'
+        : (e.verified ? `verifiziert${e.agentName ? ' · ' + e.agentName : ''}` : `nicht verifiziert${e.verificationError ? ' · ' + e.verificationError : ''}`);
+
       box.innerHTML = '';
       const rows = [
-        ['Agent', s.agentName],
-        ['Sprache', s.agentLanguage],
-        ['Audio', s.audioFormat],
+        ['Agent', settings.agentName],
+        ['Sprache', settings.agentLanguage],
+        ['Audio', settings.audioFormat],
         ['Dialog', 'ElevenLabs Conversational AI'],
-        ['ElevenLabs STT', (s.elevenlabs && s.elevenlabs.sttModel) || '–'],
-        ['ElevenLabs TTS', (s.elevenlabs && s.elevenlabs.ttsModel) || '–'],
-        ['Twilio', s.twilio && s.twilio.configured ? 'konfiguriert' : 'Simulation'],
+        ['ElevenLabs', elevenState],
+        ['ElevenLabs STT', (settings.elevenlabs && settings.elevenlabs.sttModel) || '–'],
+        ['ElevenLabs TTS', (settings.elevenlabs && settings.elevenlabs.ttsModel) || '–'],
+        ['Telefonie', telephonyState],
+        ['Provider', t.provider || '–'],
       ];
+      if (t.outboundTrunk) {
+        rows.push(['SIP ausgehend', t.outboundTrunk.hasOutboundTrunk ? 'vorhanden' : 'fehlt']);
+        rows.push(['SIP-Ziel', t.outboundTrunk.address || '–']);
+        rows.push(['SIP-Transport', t.outboundTrunk.transport || '–']);
+        rows.push(['SIP-Auth', t.outboundTrunk.hasAuthCredentials ? 'Zugangsdaten hinterlegt' : 'ohne Zugangsdaten/IP']);
+      }
       const ul = el('ul', 'list');
       for (const [k, v] of rows) {
         const li = el('li');
@@ -64,6 +102,25 @@
       box.appendChild(ul);
     } catch {
       box.textContent = 'Einstellungen nicht erreichbar.';
+    }
+  }
+
+  function callResultText(c) {
+    const detail = c.errorText || c.error;
+    const suffix = detail ? ` (${detail})` : '';
+    switch (c.status) {
+      case 'dialing':
+        return `Anruf ausgelöst an ${c.to}${suffix}. Ob Zadarma den Anruf annimmt, zeigt der aktualisierte Status; das Transkript wird nach dem Gespräch geladen.`;
+      case 'confirmation-required':
+        return 'Anruf noch nicht gestartet – Bestätigung erforderlich.';
+      case 'telephony-unverified':
+        return `Anruf nicht gestartet: Telefonie ist nicht verifiziert${suffix}.`;
+      case 'call-failed':
+        return `Anruf an ${c.to} fehlgeschlagen${suffix}.`;
+      case 'telephony-unavailable':
+        return `Anruf nicht gestartet: Kein Telefonie-Backend konfiguriert. Ziel: ${c.to}.`;
+      default:
+        return `Anrufstatus: ${c.status || 'unbekannt'}${suffix}.`;
     }
   }
 
@@ -80,7 +137,7 @@
       for (const c of calls) {
         const o = document.createElement('option');
         o.value = c.id;
-        o.textContent = `${c.to} · ${c.status}${c.simulated ? ' (Sim)' : ''}`;
+        o.textContent = `${c.to} · ${c.status}${c.simulated ? ' (kein Anruf)' : ''}`;
         sel.appendChild(o);
       }
       if (cur) sel.value = cur;
@@ -94,6 +151,13 @@
       const res = await fetch(`/api/call/${encodeURIComponent(callId)}/transcript`);
       const data = await res.json();
       renderTranscript($('transcript'), data.transcript);
+      if (data.error || data.transcriptSyncError) {
+        const errorText = data.errorText ? `${data.errorText} (${data.error})` : data.error;
+        const note = data.error
+          ? `Status: ${data.status || 'unbekannt'} · Fehler: ${errorText}`
+          : `Transkript-Sync: ${data.transcriptSyncError}`;
+        $('transcript').appendChild(el('div', 'muted small', note));
+      }
     } catch { /* ignore */ }
   }
 
@@ -151,12 +215,23 @@
       $('call-status').textContent = 'Starte Anruf …';
       addMsg($('chat-log'), 'ich', `Anruf starten: ${to || '(Nummer aus Text)'} – ${instruction}`);
       try {
-        const data = await postJSON('/api/call/start', { instruction, to });
+        let data = await postJSON('/api/call/start', { instruction, to });
+        if (data.confirmationRequired) {
+          const approved = window.confirm(`Echten Anruf an ${data.call.to} starten?`);
+          if (!approved) {
+            $('call-status').textContent = 'Anruf abgebrochen – keine Bestätigung.';
+            addMsg($('chat-log'), 'victor', 'Anruf abgebrochen (keine Bestätigung).');
+            return;
+          }
+          data = await postJSON('/api/call/start', { instruction, to, confirm: true });
+        }
         const c = data.call;
-        $('call-status').textContent =
-          `Anruf ${c.simulated ? '(Simulation, kein Netz) ' : ''}gestartet: ${c.id} → ${c.to} [${c.status}]`;
-        addMsg($('chat-log'), 'victor',
-          `Anruf ${c.simulated ? 'simuliert' : 'gestartet'} an ${c.to}. Live-Transkript unten.`);
+        const resultText = callResultText(c);
+        $('call-status').textContent = `${c.id} → ${c.to} [${c.status}] ${resultText}`;
+        addMsg($('chat-log'), 'victor', resultText);
+        if (c.status === 'confirmation-required' || c.status === 'telephony-unverified' || c.status === 'call-failed') {
+          loadSettings();
+        }
         await refreshCalls(c.id);
         $('call-select').value = c.id;
         loadTranscript(c.id);

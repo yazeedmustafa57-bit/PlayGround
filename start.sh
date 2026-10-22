@@ -24,8 +24,11 @@ if [ -f "$APP_DIR/.env" ] && [ -f "$WEB_DIR/app-url" ]; then
   if [ -n "$TUNNEL_URL" ]; then
     ESCAPED_URL="$(printf '%s' "$TUNNEL_URL" | sed 's/[&|\\]/\\&/g')"
     sed -i "s|^PUBLIC_BASE_URL=.*|PUBLIC_BASE_URL=${ESCAPED_URL}|" "$APP_DIR/.env"
-    chmod 0600 "$APP_DIR/.env"
   fi
+fi
+# Secrets nur für den Dienstbenutzer lesbar halten (auch bei manuell angelegter .env).
+if [ -f "$APP_DIR/.env" ]; then
+  chmod 0600 "$APP_DIR/.env"
 fi
 
 /usr/bin/time -p mkdir -p "$WEB_DIR"

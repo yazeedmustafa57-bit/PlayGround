@@ -1,12 +1,12 @@
 'use strict';
 
-// Victor Professional Evaluation Runner (textbasiert, kein Twilio, kein Audio).
+// Victor Professional Evaluation Runner (textbasiert, keine Telefonie, kein Audio).
 //
 // Ablauf: prüft Credentials -> legt die 8 Simulationstests einmalig an
 // (vorhandene Test-IDs werden wiederverwendet) -> führt die Suite per
 // runTests aus -> schreibt Markdown-Report nach _test-results/.
 // Verbraucht ausschließlich Text-LLM-Kontingent (Agent + Sim-User + Evaluator),
-// KEINE Audio-Minuten, KEIN Twilio. Ohne .env bricht das Script sauber ab.
+// KEINE Audio-Minuten, keine Telefonie. Ohne .env bricht das Script sauber ab.
 //
 // Nutzung: npm run eval [-- --repeat 2 --only vollstaendiger-name]
 
@@ -20,7 +20,7 @@ const DEFAULT_MAX_TURNS = 8;
 
 function loadEnv() {
   try {
-    require('dotenv').config();
+    require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
   } catch {
     /* dotenv optional */
   }
@@ -66,7 +66,7 @@ async function ensureTest(client, scenario) {
     successConditions: scenario.successConditions,
     simulationMaxTurns: scenario.maxTurns || DEFAULT_MAX_TURNS,
     dynamicVariables: scenario.dynamicVariables,
-    conversationInitiationSource: 'twilio',
+    conversationInitiationSource: 'sip_trunk',
   };
   const res = await client.conversationalAi.tests.create(body);
   return res.id || res.test_id;
@@ -101,7 +101,7 @@ function renderReport({ results, creditsTotal, agentName }) {
   lines.push(`- Bestanden: ${passed}`);
   lines.push(`- Fehlgeschlagen: ${results.length - passed}`);
   lines.push(`- Credits (Summe, soweit geliefert): ${creditsTotal == null ? 'nicht geliefert' : creditsTotal}`);
-  lines.push('- Twilio-Anruf durchgeführt: nein (reine Text-Simulation, kein Audio, keine Telefonie).');
+  lines.push('- Echter Telefonanruf durchgeführt: nein (reine Text-Simulation, kein Audio).');
   lines.push('- Produktionsänderungen: keine.');
   lines.push('');
   for (const r of results) {

@@ -43,6 +43,9 @@ test('.env steht in .gitignore und .env.example enthält nur Platzhalter', () =>
   const example = fs.readFileSync(path.join(root, '.env.example'), 'utf8');
   assert.doesNotMatch(example, /sk-[A-Za-z0-9]{10,}/, '.env.example darf keine echten Keys enthalten');
   assert.doesNotMatch(example, /AC[a-z0-9]{20,}/i, '.env.example darf keine echten SIDs enthalten');
+  assert.doesNotMatch(example, /^TWILIO_/m, '.env.example darf keine Twilio-Variablen enthalten');
+  const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  assert.equal(pkg.dependencies.twilio, undefined, 'twilio darf keine Abhängigkeit sein');
 });
 
 test('Platzhalter-Module sind ladbar', () => {

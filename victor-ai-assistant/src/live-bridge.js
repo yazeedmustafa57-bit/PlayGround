@@ -1,6 +1,6 @@
 'use strict';
 
-// Live-Bridge: Twilio Media Stream <-> ElevenLabs Conversational AI Agent.
+// Live-Bridge: Media-Stream (Telefonie-Gateway) <-> ElevenLabs Conversational AI Agent.
 // Ablauf: Signed-URL holen (Server, Key nie ans Telefon) -> ConvAI-WebSocket
 // -> Initiierung mit first_message + dynamic_variables -> Briefing als
 // user_message -> Audio beide Richtungen (Formate aus Initiation-Metadaten).
@@ -26,7 +26,7 @@ function parseRate(format, fallback) {
   return Number.isSafeInteger(rate) ? rate : fallback;
 }
 
-// Twilio-mulaw (8k) -> Format, das der Agent als Input gemeldet hat.
+// Eingehendes mulaw (8k) -> Format, das der Agent als Input gemeldet hat.
 function encodeUserAudio(mulawB64, inputFormat) {
   const fmt = String(inputFormat || 'pcm_16000');
   if (fmt.startsWith('ulaw')) return String(mulawB64 || '');
@@ -36,7 +36,7 @@ function encodeUserAudio(mulawB64, inputFormat) {
   return pcm16ToBytesLE(pcm).toString('base64');
 }
 
-// Agent-Audio -> Twilio-mulaw (8k base64).
+// Agent-Audio -> mulaw (8k base64) für das Telefonie-Gateway.
 function decodeAgentAudio(audioB64, outputFormat) {
   const fmt = String(outputFormat || 'pcm_16000');
   if (fmt.startsWith('ulaw')) return String(audioB64 || '');
@@ -120,7 +120,7 @@ function createLiveBridge(options = {}) {
     outputFormat: 'pcm_16000',
     lastError: null,
     audioToAgent: 0,
-    audioToTwilio: 0,
+    audioToCaller: 0,
   };
   const events = [];
   let ws = null;
@@ -129,7 +129,7 @@ function createLiveBridge(options = {}) {
   // Diagnose-Zähler (nur Zählung/Logs, kein Einfluss auf Audiofluss).
   const tStart = Date.now();
   const diag = {
-    audioReceivedFromTwilio: 0,
+    audioReceivedFromCaller: 0,
     audioRejected: 0,
     audioForwardedToElevenLabs: 0,
     firstInboundAudioAt: null,
@@ -212,7 +212,7 @@ function createLiveBridge(options = {}) {
     } else if (type === 'audio') {
       const b64 = msg.audio_event && msg.audio_event.audio_base_64;
       if (b64) {
-        state.audioToTwilio += 1;
+        state.audioToCaller += 1;
         if (onAgentAudio) {
           try {
             onAgentAudio(decodeAgentAudio(String(b64), state.outputFormat));
@@ -240,7 +240,7 @@ function createLiveBridge(options = {}) {
   function bridgeSummary() {
     return {
       durationMs: Date.now() - tStart,
-      audioReceivedFromTwilio: diag.audioReceivedFromTwilio,
+      audioReceivedFromCaller: diag.audioReceivedFromCaller,
       audioRejected: diag.audioRejected,
       audioForwardedToElevenLabs: diag.audioForwardedToElevenLabs,
       firstInboundAudioAt: diag.firstInboundAudioAt,
@@ -348,14 +348,14 @@ function createLiveBridge(options = {}) {
       return ws;
     },
 
-    sendUserAudio(twilioMulawB64) {
+    sendUserAudio(mulawB64) {
       // Zählung vor/nach dem Senden; Fehlerverhalten unverändert (throw).
-      diag.audioReceivedFromTwilio += 1;
+      diag.audioReceivedFromCaller += 1;
       stamp('firstInboundAudioAt');
       diag.lastInboundAudioAt = new Date().toISOString();
       let payload;
       try {
-        payload = { user_audio_chunk: encodeUserAudio(twilioMulawB64, state.inputFormat) };
+        payload = { user_audio_chunk: encodeUserAudio(mulawB64, state.inputFormat) };
       } catch (err) {
         diag.audioRejected += 1;
         throw err;
