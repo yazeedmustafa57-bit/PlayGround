@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0b1020" />
+  <meta
+    http-equiv="Content-Security-Policy"
+    content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"
+  />
+  <meta name="referrer" content="strict-origin-when-cross-origin" />
+  <title>PlayGround — Hey</title>
+  <meta name="description" content="A small, living playground app." />
+  <link rel="stylesheet" href="./styles.css" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%237c9cff'/%3E%3Cstop offset='1' stop-color='%23d68cff'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='16' fill='url(%23g)'/%3E%3Ccircle cx='24' cy='30' r='4' fill='%230b1020'/%3E%3Ccircle cx='42' cy='30' r='4' fill='%230b1020'/%3E%3Cpath d='M22 42c4 4 16 4 20 0' stroke='%230b1020' stroke-width='4' stroke-linecap='round' fill='none'/%3E%3C/svg%3E" />
+</head>
+<body>
+  <div class="backdrop" aria-hidden="true">
+    <span class="orb orb-a"></span>
+    <span class="orb orb-b"></span>
+    <span class="orb orb-c"></span>
+    <span class="grid"></span>
+  </div>
+
+  <main class="shell">
+    <section class="card" aria-labelledby="title">
+      <p class="eyebrow"><span class="dot"></span> PlayGround</p>
+      <h1 id="title">Hey<span class="bang">!</span></h1>
+      <p class="lede">
+        Welcome to your little corner of the internet. It is built, served, and
+        ready for whatever you want to make next.
+      </p>
+
+      <div class="actions">
+        <button class="primary" type="button" data-greet>Say hello</button>
+        <span class="status" role="status" data-message>Rendered and ready.</span>
+      </div>
+
+      <div class="meta">
+        <div class="meta-block">
+          <span class="meta-label">Local time</span>
+          <span class="meta-value" data-clock>--:--:--</span>
+        </div>
+        <div class="meta-block">
+          <span class="meta-label">Today</span>
+          <span class="meta-value" data-date>—</span>
+        </div>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <span>Built in the PlayGround</span>
+      <span class="spark" aria-hidden="true">✦</span>
+      <span>Made to be remixed</span>
+    </footer>
+  </main>
+
+  <script src="./app.js" defer></script>
+</body>
+</html>
